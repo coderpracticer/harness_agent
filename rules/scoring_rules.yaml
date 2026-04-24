@@ -1,0 +1,37 @@
+version: "1.0"
+base_score: 100
+rules:
+  - id: completeness_core_points
+    name: "完整性-核心信息覆盖"
+    applies_to: all
+    max_deduction: 20
+    judge_prompt: "检查摘要是否覆盖主题、关键结论、关键事实，不可明显遗漏核心信息。"
+    deduction_guide: "无明显遗漏扣0；轻微遗漏扣5-10；核心遗漏扣11-20。"
+
+  - id: structure_template_alignment
+    name: "结构-模板一致性"
+    applies_to: all
+    max_deduction: 15
+    judge_prompt: "检查摘要是否按模板结构组织，标题层级是否清晰。"
+    deduction_guide: "结构清晰扣0；个别标题缺失扣5-8；结构混乱扣9-15。"
+
+  - id: factual_consistency
+    name: "准确性-事实一致"
+    applies_to: all
+    max_deduction: 20
+    judge_prompt: "检查摘要表述是否与原文事实一致，避免幻觉和无依据扩写。"
+    deduction_guide: "事实一致扣0；轻微偏差扣5-10；明显事实错误扣11-20。"
+
+  - id: meeting_action_items
+    name: "会议-行动项可执行性"
+    applies_to: meeting
+    max_deduction: 25
+    judge_prompt: "检查是否明确行动项、负责人、时间节点，强调可执行性。"
+    deduction_guide: "完整可执行扣0；缺少1项关键要素扣8-15；缺少多项扣16-25。"
+
+  - id: interview_qa_signal
+    name: "访谈-问答要点呈现"
+    applies_to: interview
+    max_deduction: 20
+    judge_prompt: "检查是否体现问答关系、观点与依据，避免只罗列结论。"
+    deduction_guide: "问答清晰扣0；问答关系弱扣6-12；缺少问答结构扣13-20。"
