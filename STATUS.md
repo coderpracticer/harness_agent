@@ -18,6 +18,10 @@
 - 新增 `optimize` 命令：仅读取 `file_processing/original`，用指定初始模板执行模板优化循环
 - 新增 `evaluate` 命令：读取 `file_processing/original` 和所有摘要候选文件夹，输出横向对比报告
 - 新增模板目录：`templates/initial` 存放用户初始模板，`templates/generated` 存放优化生成模板
+- 新增中文母模板机制：`templates/母模板.md` 使用 `{requirement}` 和 `{format}` 占位符
+- 新增中文场景模板：`templates/场景/<场景名>/要求.md` 与 `格式.md`
+- 新增场景映射文件：`file_processing/场景映射.yaml`
+- 新增可选多模态 `.docx` 解析：`--enable-multimodal-docx` 会把提取到的图片发送给本地多模态 vLLM/OpenAI-compatible 模型
 
 ## In Progress
 
@@ -28,7 +32,7 @@
 - 可接入真实 LLM 模型并调优 prompt
 - 扩展模板类型（如周报）
 - 按业务数据补充更多评测规则
-- 如需理解图表视觉内容，可接入 OCR/多模态模型；当前 `.docx` 读取只解析文本和表格
+- 若使用多模态模型，可开启 `--enable-multimodal-docx` 解析图片；未开启时只解析文本和表格
 
 ## Blockers
 
@@ -37,6 +41,6 @@
 ## Validation Results
 
 - 测试命令：`uv run --with pytest --with python-docx pytest -q`
-- 测试结果：`19 passed`
+- 测试结果：`22 passed`
 - 配置校验：`environment.yml` YAML 解析通过
 - 未执行项：本机未安装 `conda`，因此未在本机实际创建 conda 环境

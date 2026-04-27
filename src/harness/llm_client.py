@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import os
-from ipaddress import ip_address
 from dataclasses import dataclass
+from ipaddress import ip_address
 from typing import Protocol
 from urllib.parse import urlparse
 from urllib import request
@@ -14,6 +14,22 @@ class LLMClient(Protocol):
 
     def complete(self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2) -> str:
         ...
+
+    def complete_with_images(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        images: list["ImageInput"],
+        temperature: float = 0.2,
+    ) -> str:
+        ...
+
+
+@dataclass(frozen=True)
+class ImageInput:
+    mime_type: str
+    data_base64: str
 
 
 @dataclass
@@ -42,6 +58,17 @@ class HeuristicLLMClient:
         del system_prompt, temperature
         return user_prompt
 
+    def complete_with_images(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        images: list[ImageInput],
+        temperature: float = 0.2,
+    ) -> str:
+        del system_prompt, user_prompt, temperature
+        return "\n".join(f"[Image {idx}: {image.mime_type}]" for idx, image in enumerate(images, start=1))
+
 
 class OpenAICompatibleLLMClient:
     backend_name = "openai"
@@ -54,12 +81,38 @@ class OpenAICompatibleLLMClient:
         self._settings = settings
 
     def complete(self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2) -> str:
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        return self._chat(messages=messages, temperature=temperature)
+
+    def complete_with_images(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        images: list[ImageInput],
+        temperature: float = 0.2,
+    ) -> str:
+        content: list[dict[str, object]] = [{"type": "text", "text": user_prompt}]
+        for image in images:
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{image.mime_type};base64,{image.data_base64}"},
+                }
+            )
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": content},
+        ]
+        return self._chat(messages=messages, temperature=temperature)
+
+    def _chat(self, *, messages: list[dict[str, object]], temperature: float) -> str:
         payload = {
             "model": self._settings.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
+            "messages": messages,
             "temperature": temperature,
         }
         url = self._settings.base_url.rstrip("/") + "/chat/completions"

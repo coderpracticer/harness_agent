@@ -6,12 +6,17 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from harness.agents import EvaluatorAgent, SummaryGeneratorAgent, TemplateGeneratorAgent
-from harness.document_reader import list_docx_files, read_document_text
+from harness.document_reader import list_docx_files, read_document_content
 from harness.pipeline import SummarizationPipeline
 from harness.reporting import persist_run_artifacts
 from harness.rules import select_rules_for_type
 from harness.schemas import EvaluationReport, RulesConfig, SummaryDraft, TemplateType
-from harness.templates import persist_generated_templates, read_initial_template
+from harness.templates import (
+    load_scene_mapping,
+    persist_generated_templates,
+    read_template_for_scene,
+    scene_for_file,
+)
 
 
 @dataclass(frozen=True)
@@ -42,17 +47,16 @@ def run_optimization_batch(
     evaluator_agent: EvaluatorAgent,
     max_iters: int,
     target_score: int,
+    scene_mapping_file: str | Path | None = None,
+    default_scene: str = "",
+    enable_multimodal_docx: bool = False,
 ) -> OptimizeBatchResult:
     original_dir = Path(file_processing_dir) / "original"
     original_files = list_docx_files(original_dir)
     if not original_files:
         raise FileNotFoundError(f"No .docx files found in {original_dir}")
 
-    initial_template_path, initial_template = read_initial_template(
-        templates_dir=templates_dir,
-        template_name=initial_template_name,
-        template_type=template_type,
-    )
+    scene_mapping = load_scene_mapping(scene_mapping_file)
     pipeline = SummarizationPipeline(
         template_agent=template_agent,
         summary_agent=summary_agent,
@@ -64,12 +68,25 @@ def run_optimization_batch(
     manifest: list[dict[str, object]] = []
 
     for original_file in original_files:
-        context = read_document_text(original_file)
+        document_content = read_document_content(original_file, include_images=enable_multimodal_docx)
+        scene_name = scene_for_file(
+            file_name=original_file.name,
+            file_stem=original_file.stem,
+            scene_mapping=scene_mapping,
+            default_scene=default_scene,
+        )
+        initial_template_paths, initial_template = read_template_for_scene(
+            templates_dir=templates_dir,
+            template_name=initial_template_name,
+            template_type=template_type,
+            scene_name=scene_name or None,
+        )
         result = pipeline.run(
-            context=context,
+            context=document_content.text,
             template_type=template_type,
             rules_config=rules_config,
             initial_template=initial_template,
+            context_images=document_content.images,
             max_iters=max_iters,
             target_score=target_score,
         )
@@ -90,7 +107,8 @@ def run_optimization_batch(
         manifest.append(
             {
                 "document": str(original_file),
-                "initial_template": str(initial_template_path),
+                "scene": scene_name,
+                "initial_template_components": [str(path) for path in initial_template_paths],
                 "generated_template_dir": str(generated_dir),
                 "best_round": result.best_round,
                 "best_score": result.best_score,
@@ -117,6 +135,7 @@ def run_evaluation_batch(
     template_type: TemplateType,
     rules_config: RulesConfig,
     evaluator_agent: EvaluatorAgent,
+    enable_multimodal_docx: bool = False,
 ) -> EvaluationBatchResult:
     base = Path(file_processing_dir)
     original_dir = base / "original"
@@ -139,18 +158,20 @@ def run_evaluation_batch(
     details_dir.mkdir(parents=True, exist_ok=True)
 
     for original_file in original_files:
-        context = read_document_text(original_file)
+        original_content = read_document_content(original_file, include_images=enable_multimodal_docx)
         for summary_dir in summary_dirs:
             summary_file = _match_summary_file(summary_dir=summary_dir, original_file=original_file)
             if summary_file is None:
                 missing.append({"original": str(original_file), "summary_folder": str(summary_dir)})
                 continue
-            summary_text = read_document_text(summary_file)
+            summary_content = read_document_content(summary_file, include_images=enable_multimodal_docx)
             report = evaluator_agent.evaluate(
-                context=context,
-                summary_draft=SummaryDraft(content=summary_text or "(empty summary)"),
+                context=original_content.text,
+                summary_draft=SummaryDraft(content=summary_content.text or "(empty summary)"),
                 rules=selected_rules,
                 base_score=rules_config.base_score,
+                context_images=original_content.images,
+                summary_images=summary_content.images,
             )
             detail_path = details_dir / f"{original_file.stem}__{summary_dir.name}.json"
             detail_path.write_text(report.model_dump_json(indent=2), encoding="utf-8")

@@ -103,8 +103,8 @@ class RecordingTemplateAgent:
 
 
 class FixedSummaryAgent:
-    def generate(self, context, template_draft):
-        del context, template_draft
+    def generate(self, context, template_draft, context_images=None):
+        del context, template_draft, context_images
         return SummaryDraft(content="# S\n## A\n- x")
 
 
@@ -113,8 +113,8 @@ class ScriptedEvaluatorAgent:
         self.scores = [70, 90, 80]
         self.idx = 0
 
-    def evaluate(self, context, summary_draft, rules, base_score=100):
-        del context, summary_draft, rules, base_score
+    def evaluate(self, context, summary_draft, rules, base_score=100, context_images=None, summary_images=None):
+        del context, summary_draft, rules, base_score, context_images, summary_images
         score = self.scores[self.idx]
         self.idx += 1
         deductions = [

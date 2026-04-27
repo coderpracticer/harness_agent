@@ -34,6 +34,8 @@ def build_parser() -> argparse.ArgumentParser:
     _add_batch_common_args(optimize_parser)
     optimize_parser.add_argument("--initial-template", required=True, help="Template file/name under templates/initial.")
     optimize_parser.add_argument("--templates-dir", default="templates")
+    optimize_parser.add_argument("--scene-mapping-file", default="file_processing/场景映射.yaml")
+    optimize_parser.add_argument("--default-scene", default="")
     optimize_parser.add_argument("--max-iters", type=int, default=3)
     optimize_parser.add_argument("--target-score", type=int, default=85)
 
@@ -123,6 +125,9 @@ def _optimize_command(args: argparse.Namespace) -> int:
         evaluator_agent=EvaluatorAgent(llm_client=llm_client),
         max_iters=args.max_iters,
         target_score=args.target_score,
+        scene_mapping_file=args.scene_mapping_file,
+        default_scene=args.default_scene,
+        enable_multimodal_docx=args.enable_multimodal_docx,
     )
     print(f"Optimization completed. documents={result.processed_documents}")
     print(f"Artifacts: {result.output_dir.resolve()}")
@@ -143,6 +148,7 @@ def _evaluate_command(args: argparse.Namespace) -> int:
         template_type=args.template_type,
         rules_config=rules_config,
         evaluator_agent=EvaluatorAgent(llm_client=llm_client),
+        enable_multimodal_docx=args.enable_multimodal_docx,
     )
     print(f"Evaluation completed. evaluated_pairs={result.evaluated_pairs}, missing_pairs={result.missing_pairs}")
     print(f"Comparison artifacts: {result.output_dir.resolve()}")
@@ -159,6 +165,11 @@ def _add_batch_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--base-url", default="", help="OpenAI-compatible base URL, for example vLLM /v1.")
     parser.add_argument("--api-key", default="", help="API key. Optional for local/private base URLs.")
     parser.add_argument("--timeout-seconds", type=int, default=0, help="LLM request timeout in seconds.")
+    parser.add_argument(
+        "--enable-multimodal-docx",
+        action="store_true",
+        help="Attach extracted docx images to OpenAI-compatible multimodal model requests.",
+    )
 
 
 def _create_client_from_args(args: argparse.Namespace):

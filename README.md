@@ -30,24 +30,51 @@ file_processing/
   candidate_b/
     task_001.docx
     task_002.docx
+  场景映射.yaml
 ```
 
 `original` contains source documents. Every other folder is treated as a summary candidate set.
 Files are matched by file name first, then by stem prefix.
 
-The `.docx` reader extracts paragraph text and table text. Embedded images/charts are detected as objects, but their visual content is not OCR-parsed.
+The `.docx` reader extracts paragraph text and table text. If `--enable-multimodal-docx` is set, embedded images are attached to OpenAI-compatible multimodal model requests.
+
+Scene mapping example:
+
+```yaml
+files:
+  专项讨论会示例.docx: 专项讨论会
+```
 
 ## Template Layout
 
 ```text
 templates/
+  母模板.md
   initial/
     meeting_default.md
     interview_default.md
+  场景/
+    专项讨论会/
+      要求.md
+      格式.md
   generated/
 ```
 
-Put user-authored initial templates under `templates/initial`.
+The recommended template mode uses a parent template with placeholders:
+
+```markdown
+# 摘要模板
+
+## 场景要求
+{requirement}
+
+## 输出格式
+{format}
+```
+
+For a scene such as `专项讨论会`, `templates/场景/专项讨论会/要求.md` replaces `{requirement}`, and `templates/场景/专项讨论会/格式.md` replaces `{format}`.
+
+Legacy user-authored initial templates can still be placed under `templates/initial`.
 Optimization outputs generated templates under `templates/generated/<run_id>/<document_stem>`.
 
 ## Conda Setup
@@ -82,8 +109,9 @@ Optimization reads only `file_processing/original`, generates summaries, evaluat
 python -m harness.cli optimize \
   --file-processing-dir file_processing \
   --template-type meeting \
-  --initial-template meeting_default.md \
-  --templates-dir templates
+  --initial-template 母模板.md \
+  --templates-dir templates \
+  --scene-mapping-file file_processing/场景映射.yaml
 ```
 
 ## Evaluate Summary Folders
@@ -113,7 +141,8 @@ Then run the harness against the local OpenAI-compatible endpoint:
 python -m harness.cli optimize \
   --file-processing-dir file_processing \
   --template-type meeting \
-  --initial-template meeting_default.md \
+  --initial-template 母模板.md \
+  --scene-mapping-file file_processing/场景映射.yaml \
   --llm-backend openai \
   --base-url http://127.0.0.1:8000/v1 \
   --model /path/to/model \
@@ -121,6 +150,14 @@ python -m harness.cli optimize \
 ```
 
 `--api-key` is optional for local or private-network base URLs.
+
+For a multimodal model served by vLLM, add:
+
+```bash
+--enable-multimodal-docx
+```
+
+The harness will attach extracted `.docx` images to summary generation and evaluation requests. This is the path for OCR-like or chart-aware behavior; the actual visual understanding quality depends on the served multimodal model.
 
 ## Environment Variables
 

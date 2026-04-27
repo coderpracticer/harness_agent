@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from harness.agents import EvaluatorAgent, SummaryGeneratorAgent, TemplateGeneratorAgent
+from harness.llm_client import ImageInput
 from harness.rules import select_rules_for_type
 from harness.schemas import PipelineResult, RoundLog, RulesConfig, TemplateType
 
@@ -23,6 +24,7 @@ class SummarizationPipeline:
         template_type: TemplateType,
         rules_config: RulesConfig,
         initial_template: str | None = None,
+        context_images: list[ImageInput] | None = None,
         max_iters: int = 3,
         target_score: int = 85,
     ) -> PipelineResult:
@@ -55,12 +57,17 @@ class SummarizationPipeline:
                     eval_feedback=eval_feedback or None,
                     prev_template=prev_template,
                 )
-            summary_draft = self._summary_agent.generate(context=context, template_draft=template_draft)
+            summary_draft = self._summary_agent.generate(
+                context=context,
+                template_draft=template_draft,
+                context_images=context_images or [],
+            )
             evaluation = self._evaluator_agent.evaluate(
                 context=context,
                 summary_draft=summary_draft,
                 rules=selected_rules,
                 base_score=rules_config.base_score,
+                context_images=context_images or [],
             )
             round_log = RoundLog(
                 round_index=round_index,

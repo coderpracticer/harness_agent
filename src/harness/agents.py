@@ -4,7 +4,7 @@ import json
 import re
 from typing import Sequence
 
-from harness.llm_client import LLMClient
+from harness.llm_client import ImageInput, LLMClient
 from harness.schemas import DeductionItem, EvaluationReport, Rule, SummaryDraft, TemplateDraft, TemplateType
 
 
@@ -70,21 +70,43 @@ class SummaryGeneratorAgent:
     def __init__(self, llm_client: LLMClient):
         self._llm = llm_client
 
-    def generate(self, context: str, template_draft: TemplateDraft) -> SummaryDraft:
+    def generate(
+        self,
+        context: str,
+        template_draft: TemplateDraft,
+        context_images: list[ImageInput] | None = None,
+    ) -> SummaryDraft:
         if self._llm.backend_name == "openai":
-            content = self._generate_with_llm(context=context, template_draft=template_draft)
+            content = self._generate_with_llm(
+                context=context,
+                template_draft=template_draft,
+                context_images=context_images or [],
+            )
         else:
             content = self._generate_heuristic(context=context, template_draft=template_draft)
         return SummaryDraft(content=content)
 
-    def _generate_with_llm(self, context: str, template_draft: TemplateDraft) -> str:
+    def _generate_with_llm(
+        self,
+        context: str,
+        template_draft: TemplateDraft,
+        context_images: list[ImageInput],
+    ) -> str:
         system_prompt = "You are a summary generation agent. Follow the template and output Markdown."
         user_prompt = (
             f"Template type: {template_draft.template_type}\n\n"
             f"Template:\n{template_draft.content}\n\n"
             f"Source document:\n{context}\n\n"
-            "Requirements: preserve facts, cover important information, and keep the structure clear."
+            f"Attached source images/charts: {len(context_images)}\n\n"
+            "Requirements: preserve facts, cover important information, use attached images/charts when present, "
+            "and keep the structure clear."
         )
+        if context_images:
+            return self._llm.complete_with_images(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                images=context_images,
+            )
         return self._llm.complete(system_prompt=system_prompt, user_prompt=user_prompt)
 
     def _generate_heuristic(self, context: str, template_draft: TemplateDraft) -> str:
@@ -110,6 +132,8 @@ class EvaluatorAgent:
         summary_draft: SummaryDraft,
         rules: Sequence[Rule],
         base_score: int = 100,
+        context_images: list[ImageInput] | None = None,
+        summary_images: list[ImageInput] | None = None,
     ) -> EvaluationReport:
         deductions: list[DeductionItem] = []
         warnings: list[str] = []
@@ -122,6 +146,8 @@ class EvaluatorAgent:
                 rule=rule,
                 context=context,
                 summary=summary_draft.content,
+                context_images=context_images or [],
+                summary_images=summary_images or [],
             )
             deducted_points, warning = _clamp_deduction(
                 raw_points=raw_points,
@@ -152,10 +178,23 @@ class EvaluatorAgent:
             warnings=warnings,
         )
 
-    def _evaluate_single_rule(self, rule: Rule, context: str, summary: str) -> tuple[int, str, str]:
+    def _evaluate_single_rule(
+        self,
+        rule: Rule,
+        context: str,
+        summary: str,
+        context_images: list[ImageInput],
+        summary_images: list[ImageInput],
+    ) -> tuple[int, str, str]:
         if self._llm.backend_name == "openai":
             try:
-                return self._evaluate_single_rule_with_llm(rule=rule, context=context, summary=summary)
+                return self._evaluate_single_rule_with_llm(
+                    rule=rule,
+                    context=context,
+                    summary=summary,
+                    context_images=context_images,
+                    summary_images=summary_images,
+                )
             except Exception as exc:
                 raw, evidence, rationale = self._evaluate_single_rule_heuristic(
                     rule=rule,
@@ -165,8 +204,16 @@ class EvaluatorAgent:
                 return raw, f"{evidence}; fallback={exc}", rationale
         return self._evaluate_single_rule_heuristic(rule=rule, context=context, summary=summary)
 
-    def _evaluate_single_rule_with_llm(self, rule: Rule, context: str, summary: str) -> tuple[int, str, str]:
+    def _evaluate_single_rule_with_llm(
+        self,
+        rule: Rule,
+        context: str,
+        summary: str,
+        context_images: list[ImageInput],
+        summary_images: list[ImageInput],
+    ) -> tuple[int, str, str]:
         system_prompt = "You are a summary evaluation agent. Output JSON only."
+        images = context_images + summary_images
         user_prompt = (
             f"Rule ID: {rule.id}\n"
             f"Rule name: {rule.name}\n"
@@ -175,9 +222,18 @@ class EvaluatorAgent:
             f"Deduction guide: {rule.deduction_guide}\n\n"
             f"Source document:\n{context}\n\n"
             f"Summary:\n{summary}\n\n"
+            f"Attached images/charts: source={len(context_images)}, summary={len(summary_images)}.\n"
+            "If images/charts are attached, include them in the evaluation when relevant.\n\n"
             'Return JSON: {"raw_deduction": <int>, "evidence": "<str>", "rationale": "<str>"}'
         )
-        response = self._llm.complete(system_prompt=system_prompt, user_prompt=user_prompt)
+        if images:
+            response = self._llm.complete_with_images(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                images=images,
+            )
+        else:
+            response = self._llm.complete(system_prompt=system_prompt, user_prompt=user_prompt)
         payload = _extract_json_object(response)
         return int(payload["raw_deduction"]), str(payload["evidence"]), str(payload["rationale"])
 

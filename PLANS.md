@@ -14,3 +14,7 @@
 - [x] 支持 `.docx` 原文和摘要读取（段落与表格）
 - [x] 支持模板目录：`templates/initial` 与 `templates/generated`
 - [x] 增加 `optimize` / `evaluate` 两个项目入口
+- [x] 支持中文文件名、中文模板名与中文场景名
+- [x] 支持母模板 `{requirement}` / `{format}` 场景化渲染
+- [x] 支持可选多模态 `.docx` 图片输入到 vLLM/OpenAI-compatible 请求
+- [x] 支持 `file_processing/场景映射.yaml` 指定文件对应场景
