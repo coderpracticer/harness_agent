@@ -127,6 +127,7 @@ python -m harness.cli evaluate \
 ```
 
 Evaluation does not load templates.
+If a summary file is missing, empty, or unreadable, that pair is skipped and recorded under `Skipped Files` in `comparison.md`; the rest of the batch continues.
 
 ## vLLM On A800
 

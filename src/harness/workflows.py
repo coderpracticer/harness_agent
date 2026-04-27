@@ -150,13 +150,21 @@ def run_evaluation_batch(
     type_mapping = load_type_mapping(type_mapping_file)
 
     rows: list[dict[str, object]] = []
-    missing: list[dict[str, str]] = []
+    skipped: list[dict[str, str]] = []
     output_base = Path(output_dir)
     details_dir = output_base / "details"
     details_dir.mkdir(parents=True, exist_ok=True)
 
     for original_file in original_files:
-        original_content = read_document_content(original_file, include_images=enable_multimodal_docx)
+        try:
+            original_content = read_document_content(original_file, include_images=enable_multimodal_docx)
+        except Exception as exc:
+            skipped.append(_skip_record(original_file=original_file, reason=f"failed to read original: {exc}"))
+            continue
+        if not original_content.text.strip() and not original_content.images:
+            skipped.append(_skip_record(original_file=original_file, reason="empty original document"))
+            continue
+
         detected_type = type_for_file(
             file_name=original_file.name,
             file_stem=original_file.stem,
@@ -171,9 +179,37 @@ def run_evaluation_batch(
         for summary_dir in summary_dirs:
             summary_file = _match_summary_file(summary_dir=summary_dir, original_file=original_file)
             if summary_file is None:
-                missing.append({"original": str(original_file), "summary_folder": str(summary_dir)})
+                skipped.append(
+                    _skip_record(
+                        original_file=original_file,
+                        summary_folder=summary_dir,
+                        reason="missing corresponding summary file",
+                    )
+                )
                 continue
-            summary_content = read_document_content(summary_file, include_images=enable_multimodal_docx)
+            try:
+                summary_content = read_document_content(summary_file, include_images=enable_multimodal_docx)
+            except Exception as exc:
+                skipped.append(
+                    _skip_record(
+                        original_file=original_file,
+                        summary_folder=summary_dir,
+                        summary_file=summary_file,
+                        reason=f"failed to read summary: {exc}",
+                    )
+                )
+                continue
+            if not summary_content.text.strip() and not summary_content.images:
+                skipped.append(
+                    _skip_record(
+                        original_file=original_file,
+                        summary_folder=summary_dir,
+                        summary_file=summary_file,
+                        reason="empty summary document",
+                    )
+                )
+                continue
+
             report = evaluator_agent.evaluate(
                 context=original_content.text,
                 summary_draft=SummaryDraft(content=summary_content.text or "(empty summary)"),
@@ -186,11 +222,11 @@ def run_evaluation_batch(
             detail_path.write_text(report.model_dump_json(indent=2), encoding="utf-8")
             rows.append(_evaluation_row(original_file, summary_dir, summary_file, detected_type, report, detail_path))
 
-    _write_evaluation_outputs(output_base=output_base, run_id=run_id, rows=rows, missing=missing)
+    _write_evaluation_outputs(output_base=output_base, run_id=run_id, rows=rows, skipped=skipped)
     return EvaluationBatchResult(
         output_dir=output_base,
         evaluated_pairs=len(rows),
-        missing_pairs=len(missing),
+        missing_pairs=len(skipped),
     )
 
 
@@ -223,18 +259,37 @@ def _evaluation_row(
     }
 
 
+def _skip_record(
+    *,
+    original_file: Path,
+    reason: str,
+    summary_folder: Path | None = None,
+    summary_file: Path | None = None,
+) -> dict[str, str]:
+    return {
+        "original": str(original_file),
+        "summary_folder": str(summary_folder) if summary_folder else "",
+        "summary_file": str(summary_file) if summary_file else "",
+        "reason": reason,
+    }
+
+
 def _write_evaluation_outputs(
     *,
     output_base: Path,
     run_id: str,
     rows: list[dict[str, object]],
-    missing: list[dict[str, str]],
+    skipped: list[dict[str, str]],
 ) -> None:
     output_base.mkdir(parents=True, exist_ok=True)
     rows_sorted = sorted(rows, key=lambda item: (str(item["original_file"]), -int(item["score"]), str(item["summary_folder"])))
 
     (output_base / "comparison.json").write_text(
-        json.dumps({"run_id": run_id, "results": rows_sorted, "missing": missing}, ensure_ascii=False, indent=2),
+        json.dumps(
+            {"run_id": run_id, "results": rows_sorted, "skipped": skipped, "missing": skipped},
+            ensure_ascii=False,
+            indent=2,
+        ),
         encoding="utf-8",
     )
 
@@ -253,9 +308,11 @@ def _write_evaluation_outputs(
             f"{row['total_deduction']} | {row['deductions'] or '-'} |"
         )
 
-    if missing:
-        lines.extend(["", "## Missing Summary Files", ""])
-        for item in missing:
-            lines.append(f"- {item['original']} missing in {item['summary_folder']}")
+    if skipped:
+        lines.extend(["", "## Skipped Files", ""])
+        for item in skipped:
+            folder = item.get("summary_folder") or "-"
+            summary = item.get("summary_file") or "-"
+            lines.append(f"- original={item['original']}; folder={folder}; summary={summary}; reason={item['reason']}")
 
     (output_base / "comparison.md").write_text("\n".join(lines).strip() + "\n", encoding="utf-8")

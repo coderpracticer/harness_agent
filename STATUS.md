@@ -24,6 +24,7 @@
 - 新增类型映射文件：`file_processing/类型映射.yaml`
 - 内置默认关键词映射：`发布会 -> press_conference`、`工作 -> meeting`、`知识 -> knowledge`、`新闻 -> news`
 - `optimize` / `evaluate` 会遍历全部 `.docx` 文件，并按每个文件名独立选择模板类型
+- `evaluate` 遇到缺失、空白或无法读取的摘要文件会记录跳过原因并继续处理其他文件
 
 ## In Progress
 
@@ -43,6 +44,6 @@
 ## Validation Results
 
 - 测试命令：`uv run --offline --with pytest --with python-docx pytest -q --basetemp temp/pytest_run`
-- 测试结果：`23 passed`
+- 测试结果：`24 passed`
 - 配置校验：`environment.yml` YAML 解析通过
 - 未执行项：本机未安装 `conda`，因此未在本机实际创建 conda 环境
