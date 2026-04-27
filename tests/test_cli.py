@@ -25,3 +25,38 @@ def test_run_parser_accepts_local_llm_options():
     assert args.base_url == "http://127.0.0.1:8000/v1"
     assert args.model == "/models/qwen"
     assert args.timeout_seconds == 120
+
+
+def test_parser_accepts_optimize_command():
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "optimize",
+            "--file-processing-dir",
+            "file_processing",
+            "--template-type",
+            "meeting",
+            "--initial-template",
+            "meeting_default.md",
+        ]
+    )
+
+    assert args.command == "optimize"
+    assert args.initial_template == "meeting_default.md"
+    assert args.templates_dir == "templates"
+
+
+def test_parser_accepts_evaluate_command():
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "evaluate",
+            "--file-processing-dir",
+            "file_processing",
+            "--template-type",
+            "interview",
+        ]
+    )
+
+    assert args.command == "evaluate"
+    assert args.file_processing_dir == "file_processing"

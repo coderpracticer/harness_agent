@@ -22,6 +22,7 @@ class SummarizationPipeline:
         context: str,
         template_type: TemplateType,
         rules_config: RulesConfig,
+        initial_template: str | None = None,
         max_iters: int = 3,
         target_score: int = 85,
     ) -> PipelineResult:
@@ -37,15 +38,23 @@ class SummarizationPipeline:
         stopped_reason = f"Reached max iterations ({max_iters})."
 
         eval_feedback = ""
-        prev_template: str | None = None
+        prev_template: str | None = initial_template
 
         for round_index in range(1, max_iters + 1):
-            template_draft = self._template_agent.generate(
-                context=context,
-                template_type=template_type,
-                eval_feedback=eval_feedback or None,
-                prev_template=prev_template,
-            )
+            if round_index == 1 and initial_template:
+                template_draft = self._template_agent.generate(
+                    context=context,
+                    template_type=template_type,
+                    eval_feedback=None,
+                    prev_template=initial_template,
+                )
+            else:
+                template_draft = self._template_agent.generate(
+                    context=context,
+                    template_type=template_type,
+                    eval_feedback=eval_feedback or None,
+                    prev_template=prev_template,
+                )
             summary_draft = self._summary_agent.generate(context=context, template_draft=template_draft)
             evaluation = self._evaluator_agent.evaluate(
                 context=context,
@@ -88,8 +97,8 @@ class SummarizationPipeline:
 
 def _build_eval_feedback(round_log: RoundLog) -> str:
     if not round_log.evaluation.deductions:
-        return "本轮无扣分，继续保持模板结构和信息覆盖。"
-    lines = ["请根据以下扣分点优化模板："]
+        return "No deductions in this round; keep the current structure and coverage."
+    lines = ["Improve the template according to these deductions:"]
     for item in round_log.evaluation.deductions:
-        lines.append(f"- 规则 {item.rule_id} 扣 {item.deducted_points} 分：{item.rationale}")
+        lines.append(f"- Rule {item.rule_id} deducted {item.deducted_points}: {item.rationale}")
     return "\n".join(lines)

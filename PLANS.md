@@ -10,3 +10,7 @@
 - [x] 实现 CLI 入口与默认参数
 - [x] 补齐单元/集成/e2e 测试
 - [x] 执行验证并更新 `STATUS.md`
+- [x] 支持 `file_processing/original` 与多摘要文件夹批量评测
+- [x] 支持 `.docx` 原文和摘要读取（段落与表格）
+- [x] 支持模板目录：`templates/initial` 与 `templates/generated`
+- [x] 增加 `optimize` / `evaluate` 两个项目入口

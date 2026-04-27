@@ -13,6 +13,42 @@ It supports:
 - score + deduction rationale outputs
 - iterative optimization with stopping conditions
 - local OpenAI-compatible LLM endpoints such as vLLM
+- `.docx` source and summary files under `file_processing`
+
+## Data Layout
+
+Place `.docx` files under `file_processing`.
+
+```text
+file_processing/
+  original/
+    task_001.docx
+    task_002.docx
+  candidate_a/
+    task_001.docx
+    task_002.docx
+  candidate_b/
+    task_001.docx
+    task_002.docx
+```
+
+`original` contains source documents. Every other folder is treated as a summary candidate set.
+Files are matched by file name first, then by stem prefix.
+
+The `.docx` reader extracts paragraph text and table text. Embedded images/charts are detected as objects, but their visual content is not OCR-parsed.
+
+## Template Layout
+
+```text
+templates/
+  initial/
+    meeting_default.md
+    interview_default.md
+  generated/
+```
+
+Put user-authored initial templates under `templates/initial`.
+Optimization outputs generated templates under `templates/generated/<run_id>/<document_stem>`.
 
 ## Conda Setup
 
@@ -38,13 +74,25 @@ pip install -r requirements-dev.txt
 pytest -q
 ```
 
-## Run With Heuristic Backend
+## Optimize Templates
 
-This mode does not call an LLM and is useful for smoke tests:
+Optimization reads only `file_processing/original`, generates summaries, evaluates them, and writes optimized templates:
 
 ```bash
-python -m harness.cli run \
-  --prompt-file tests/fixtures/meeting_input.md \
+python -m harness.cli optimize \
+  --file-processing-dir file_processing \
+  --template-type meeting \
+  --initial-template meeting_default.md \
+  --templates-dir templates
+```
+
+## Evaluate Summary Folders
+
+Evaluation reads `file_processing/original` plus every other summary folder and produces comparison reports:
+
+```bash
+python -m harness.cli evaluate \
+  --file-processing-dir file_processing \
   --template-type meeting
 ```
 
@@ -62,9 +110,10 @@ python -m vllm.entrypoints.openai.api_server \
 Then run the harness against the local OpenAI-compatible endpoint:
 
 ```bash
-python -m harness.cli run \
-  --prompt-file tests/fixtures/meeting_input.md \
+python -m harness.cli optimize \
+  --file-processing-dir file_processing \
   --template-type meeting \
+  --initial-template meeting_default.md \
   --llm-backend openai \
   --base-url http://127.0.0.1:8000/v1 \
   --model /path/to/model \
