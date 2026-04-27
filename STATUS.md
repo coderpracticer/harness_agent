@@ -12,6 +12,8 @@
 - CLI 完成：`python -m harness.cli run ...`
 - 测试完成：单元、集成、e2e
 - 依赖导出完成：生成可用于远程 conda 环境安装的 `requirements.txt`
+- conda 部署配置完成：新增 `environment.yml` 和 `requirements-dev.txt`
+- CLI 支持直接传入本地模型服务配置：`--base-url`、`--model`、`--api-key`、`--timeout-seconds`
 
 ## In Progress
 
@@ -29,5 +31,7 @@
 
 ## Validation Results
 
-- 命令：`uv run --with pytest pytest -q`
-- 结果：`13 passed`
+- 测试命令：`uv run --with pytest pytest -q`
+- 测试结果：`14 passed`
+- 配置校验：`environment.yml` YAML 解析通过
+- 未执行项：本机未安装 `conda`，因此未在本机实际创建 conda 环境

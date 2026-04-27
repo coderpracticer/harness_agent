@@ -8,6 +8,7 @@ __pycache__/
 .venv/
 .uv_cache/
 .pytest_cache/
+uv.lock
 
 # Build metadata
 *.egg-info/

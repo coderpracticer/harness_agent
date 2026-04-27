@@ -23,6 +23,10 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--target-score", type=int, default=85)
     run_parser.add_argument("--output-dir", default="")
     run_parser.add_argument("--llm-backend", choices=["heuristic", "openai"], default="")
+    run_parser.add_argument("--model", default="", help="Model name for OpenAI-compatible backends.")
+    run_parser.add_argument("--base-url", default="", help="OpenAI-compatible base URL, for example vLLM /v1.")
+    run_parser.add_argument("--api-key", default="", help="API key. Optional for local/private base URLs.")
+    run_parser.add_argument("--timeout-seconds", type=int, default=0, help="LLM request timeout in seconds.")
     return parser
 
 
@@ -46,6 +50,14 @@ def _run_command(args: argparse.Namespace) -> int:
     settings = LLMSettings.from_env()
     if args.llm_backend:
         settings.backend = args.llm_backend
+    if args.model:
+        settings.model = args.model
+    if args.base_url:
+        settings.base_url = args.base_url
+    if args.api_key:
+        settings.api_key = args.api_key
+    if args.timeout_seconds:
+        settings.timeout_seconds = args.timeout_seconds
     llm_client = create_llm_client(settings=settings)
 
     template_agent = TemplateGeneratorAgent(llm_client=llm_client)
