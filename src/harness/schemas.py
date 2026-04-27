@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from typing import Literal
-
 from pydantic import BaseModel, Field, model_validator
 
-TemplateType = Literal["meeting", "interview"]
-RuleAppliesTo = Literal["all", "meeting", "interview"]
+TemplateType = str
+RuleAppliesTo = str
 
 
 class Rule(BaseModel):

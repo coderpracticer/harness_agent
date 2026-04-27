@@ -17,29 +17,23 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Harness summary template iteration CLI.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    run_parser = subparsers.add_parser("run", help="Run template->summary->evaluation iterative pipeline.")
-    run_parser.add_argument("--prompt-file", required=True, help="Input file under prompt_dir (single task file).")
-    run_parser.add_argument("--template-type", required=True, choices=["meeting", "interview"])
+    run_parser = subparsers.add_parser("run", help="Run one text prompt through template->summary->evaluation.")
+    run_parser.add_argument("--prompt-file", required=True)
+    run_parser.add_argument("--template-type", required=True)
     run_parser.add_argument("--rules-file", default="rules/scoring_rules.yaml")
     run_parser.add_argument("--max-iters", type=int, default=3)
     run_parser.add_argument("--target-score", type=int, default=85)
     run_parser.add_argument("--output-dir", default="")
-    run_parser.add_argument("--llm-backend", choices=["heuristic", "openai"], default="")
-    run_parser.add_argument("--model", default="", help="Model name for OpenAI-compatible backends.")
-    run_parser.add_argument("--base-url", default="", help="OpenAI-compatible base URL, for example vLLM /v1.")
-    run_parser.add_argument("--api-key", default="", help="API key. Optional for local/private base URLs.")
-    run_parser.add_argument("--timeout-seconds", type=int, default=0, help="LLM request timeout in seconds.")
+    _add_llm_args(run_parser)
 
-    optimize_parser = subparsers.add_parser("optimize", help="Optimize templates from file_processing/original docx files.")
+    optimize_parser = subparsers.add_parser("optimize", help="Optimize templates for all original docx files.")
     _add_batch_common_args(optimize_parser)
-    optimize_parser.add_argument("--initial-template", required=True, help="Template file/name under templates/initial.")
+    optimize_parser.add_argument("--initial-template", required=True, help="Parent template file, for example 母模板.md.")
     optimize_parser.add_argument("--templates-dir", default="templates")
-    optimize_parser.add_argument("--scene-mapping-file", default="file_processing/场景映射.yaml")
-    optimize_parser.add_argument("--default-scene", default="")
     optimize_parser.add_argument("--max-iters", type=int, default=3)
     optimize_parser.add_argument("--target-score", type=int, default=85)
 
-    evaluate_parser = subparsers.add_parser("evaluate", help="Evaluate all summary folders against file_processing/original.")
+    evaluate_parser = subparsers.add_parser("evaluate", help="Evaluate every summary folder against all originals.")
     _add_batch_common_args(evaluate_parser)
     return parser
 
@@ -65,18 +59,11 @@ def _run_command(args: argparse.Namespace) -> int:
 
     rules_config = load_rules_config(args.rules_file)
     llm_client = _create_client_from_args(args)
-
-    template_agent = TemplateGeneratorAgent(llm_client=llm_client)
-    summary_agent = SummaryGeneratorAgent(llm_client=llm_client)
-    evaluator_agent = EvaluatorAgent(llm_client=llm_client)
     pipeline = SummarizationPipeline(
-        template_agent=template_agent,
-        summary_agent=summary_agent,
-        evaluator_agent=evaluator_agent,
+        template_agent=TemplateGeneratorAgent(llm_client=llm_client),
+        summary_agent=SummaryGeneratorAgent(llm_client=llm_client),
+        evaluator_agent=EvaluatorAgent(llm_client=llm_client),
     )
-
-    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = Path(args.output_dir) if args.output_dir else Path("outputs") / run_id
 
     initial_template = None
     if getattr(args, "initial_template", ""):
@@ -86,6 +73,8 @@ def _run_command(args: argparse.Namespace) -> int:
             template_type=args.template_type,
         )
 
+    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = Path(args.output_dir) if args.output_dir else Path("outputs") / run_id
     result = pipeline.run(
         context=context,
         template_type=args.template_type,
@@ -125,8 +114,7 @@ def _optimize_command(args: argparse.Namespace) -> int:
         evaluator_agent=EvaluatorAgent(llm_client=llm_client),
         max_iters=args.max_iters,
         target_score=args.target_score,
-        scene_mapping_file=args.scene_mapping_file,
-        default_scene=args.default_scene,
+        type_mapping_file=args.type_mapping_file,
         enable_multimodal_docx=args.enable_multimodal_docx,
     )
     print(f"Optimization completed. documents={result.processed_documents}")
@@ -148,6 +136,7 @@ def _evaluate_command(args: argparse.Namespace) -> int:
         template_type=args.template_type,
         rules_config=rules_config,
         evaluator_agent=EvaluatorAgent(llm_client=llm_client),
+        type_mapping_file=args.type_mapping_file,
         enable_multimodal_docx=args.enable_multimodal_docx,
     )
     print(f"Evaluation completed. evaluated_pairs={result.evaluated_pairs}, missing_pairs={result.missing_pairs}")
@@ -157,19 +146,24 @@ def _evaluate_command(args: argparse.Namespace) -> int:
 
 def _add_batch_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--file-processing-dir", default="file_processing")
-    parser.add_argument("--template-type", required=True, choices=["meeting", "interview"])
+    parser.add_argument("--template-type", default="meeting", help="Fallback type when no filename keyword matches.")
+    parser.add_argument("--type-mapping-file", default="file_processing/类型映射.yaml")
     parser.add_argument("--rules-file", default="rules/scoring_rules.yaml")
     parser.add_argument("--output-dir", default="")
-    parser.add_argument("--llm-backend", choices=["heuristic", "openai"], default="")
-    parser.add_argument("--model", default="", help="Model name for OpenAI-compatible backends.")
-    parser.add_argument("--base-url", default="", help="OpenAI-compatible base URL, for example vLLM /v1.")
-    parser.add_argument("--api-key", default="", help="API key. Optional for local/private base URLs.")
-    parser.add_argument("--timeout-seconds", type=int, default=0, help="LLM request timeout in seconds.")
     parser.add_argument(
         "--enable-multimodal-docx",
         action="store_true",
         help="Attach extracted docx images to OpenAI-compatible multimodal model requests.",
     )
+    _add_llm_args(parser)
+
+
+def _add_llm_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--llm-backend", choices=["heuristic", "openai"], default="")
+    parser.add_argument("--model", default="", help="Model name for OpenAI-compatible backends.")
+    parser.add_argument("--base-url", default="", help="OpenAI-compatible base URL, for example vLLM /v1.")
+    parser.add_argument("--api-key", default="", help="API key. Optional for local/private base URLs.")
+    parser.add_argument("--timeout-seconds", type=int, default=0, help="LLM request timeout in seconds.")
 
 
 def _create_client_from_args(args: argparse.Namespace):

@@ -295,6 +295,16 @@ class EvaluatorAgent:
 
 def _default_template(template_type: TemplateType) -> str:
     defaults = {
+        "press_conference": "\n".join(
+            [
+                "# Press Conference Summary Template",
+                "## Event Background",
+                "## Key Announcements",
+                "## Important Data",
+                "## Media Q&A",
+                "## Follow-up Signals",
+            ]
+        ),
         "meeting": "\n".join(
             [
                 "# Meeting Summary Template",
@@ -305,6 +315,26 @@ def _default_template(template_type: TemplateType) -> str:
                 "| Item | Owner | Deadline |",
                 "|---|---|---|",
                 "## Risks and Open Questions",
+            ]
+        ),
+        "knowledge": "\n".join(
+            [
+                "# Knowledge Summary Template",
+                "## Core Concepts",
+                "## Key Facts",
+                "## Methods or Process",
+                "## Examples",
+                "## Practical Takeaways",
+            ]
+        ),
+        "news": "\n".join(
+            [
+                "# News Summary Template",
+                "## Lead",
+                "## Key Facts",
+                "## Timeline",
+                "## Stakeholders",
+                "## Impact",
             ]
         ),
         "interview": "\n".join(
@@ -318,16 +348,19 @@ def _default_template(template_type: TemplateType) -> str:
             ]
         ),
     }
-    return defaults[template_type]
+    return defaults.get(template_type, defaults["meeting"])
 
 
 def _ensure_sections(template: str, template_type: TemplateType) -> str:
     required = {
+        "press_conference": ["Event Background", "Key Announcements", "Important Data", "Media Q&A", "Follow-up Signals"],
         "meeting": ["Meeting Topic", "Key Conclusions", "Decisions", "Action Items", "Risks and Open Questions"],
+        "knowledge": ["Core Concepts", "Key Facts", "Methods or Process", "Examples", "Practical Takeaways"],
+        "news": ["Lead", "Key Facts", "Timeline", "Stakeholders", "Impact"],
         "interview": ["Interview Background", "Core Viewpoints", "Q&A Highlights", "Interviewee Concerns", "Follow-up Suggestions"],
     }
     lines = template.splitlines()
-    for section in required[template_type]:
+    for section in required.get(template_type, required["meeting"]):
         if f"## {section}" not in template:
             lines.append(f"## {section}")
     return "\n".join(lines)

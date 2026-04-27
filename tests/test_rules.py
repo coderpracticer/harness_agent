@@ -11,7 +11,7 @@ def test_load_rules_config_success():
     assert len(config.rules) >= 3
 
 
-def test_load_rules_config_invalid_applies_to(tmp_path: Path):
+def test_load_rules_config_invalid_max_deduction(tmp_path: Path):
     bad = tmp_path / "bad.yaml"
     bad.write_text(
         """
@@ -20,8 +20,8 @@ base_score: 100
 rules:
   - id: x
     name: x
-    applies_to: invalid_type
-    max_deduction: 5
+    applies_to: press_conference
+    max_deduction: -1
     judge_prompt: "p"
     deduction_guide: "g"
 """.strip(),

@@ -1,24 +1,26 @@
 # Template Directory
 
-Place user-provided initial templates under `templates/initial`.
-
-Generated templates from optimization runs are written under `templates/generated/<run_id>/<document_stem>`.
-
-Examples:
+Recommended layout:
 
 ```text
 templates/
-  initial/
-    meeting_default.md
-    interview_default.md
+  母模板.md
+  场景/
+    press_conference/
+      要求.md
+      格式.md
+    meeting/
+      要求.md
+      格式.md
+    knowledge/
+      要求.md
+      格式.md
+    news/
+      要求.md
+      格式.md
   generated/
 ```
 
-Use an initial template by name:
+`母模板.md` provides the shared prompt skeleton. Each scene folder provides `要求.md` for `{requirement}` and `格式.md` for `{format}`.
 
-```bash
-python -m harness.cli optimize \
-  --file-processing-dir file_processing \
-  --template-type meeting \
-  --initial-template meeting_default.md
-```
+Optimization writes generated templates to `templates/generated/<run_id>/<document_stem>`.

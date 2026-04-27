@@ -1,4 +1,0 @@
-# Map source document names to scene names.
-# The key can be either the full file name or the file stem without .docx.
-files:
-  专项讨论会示例.docx: 专项讨论会

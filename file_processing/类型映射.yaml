@@ -1,0 +1,9 @@
+# File-name keyword to template type mapping.
+# The harness checks exact file names first, then keyword containment.
+keywords:
+  发布会: press_conference
+  工作: meeting
+  知识: knowledge
+  新闻: news
+
+files: {}

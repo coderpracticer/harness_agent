@@ -20,8 +20,10 @@
 - 新增模板目录：`templates/initial` 存放用户初始模板，`templates/generated` 存放优化生成模板
 - 新增中文母模板机制：`templates/母模板.md` 使用 `{requirement}` 和 `{format}` 占位符
 - 新增中文场景模板：`templates/场景/<场景名>/要求.md` 与 `格式.md`
-- 新增场景映射文件：`file_processing/场景映射.yaml`
 - 新增可选多模态 `.docx` 解析：`--enable-multimodal-docx` 会把提取到的图片发送给本地多模态 vLLM/OpenAI-compatible 模型
+- 新增类型映射文件：`file_processing/类型映射.yaml`
+- 内置默认关键词映射：`发布会 -> press_conference`、`工作 -> meeting`、`知识 -> knowledge`、`新闻 -> news`
+- `optimize` / `evaluate` 会遍历全部 `.docx` 文件，并按每个文件名独立选择模板类型
 
 ## In Progress
 
@@ -40,7 +42,7 @@
 
 ## Validation Results
 
-- 测试命令：`uv run --with pytest --with python-docx pytest -q`
-- 测试结果：`22 passed`
+- 测试命令：`uv run --offline --with pytest --with python-docx pytest -q --basetemp temp/pytest_run`
+- 测试结果：`23 passed`
 - 配置校验：`environment.yml` YAML 解析通过
 - 未执行项：本机未安装 `conda`，因此未在本机实际创建 conda 环境

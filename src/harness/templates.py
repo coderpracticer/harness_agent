@@ -6,24 +6,72 @@ import yaml
 
 from harness.schemas import TemplateType
 
+DEFAULT_TYPE_KEYWORDS: dict[str, str] = {
+    "发布会": "press_conference",
+    "工作": "meeting",
+    "知识": "knowledge",
+    "新闻": "news",
+}
+
 
 def load_scene_mapping(mapping_file: str | Path | None) -> dict[str, str]:
+    return load_type_mapping(mapping_file)["files"]
+
+
+def load_type_mapping(mapping_file: str | Path | None) -> dict[str, dict[str, str]]:
+    mapping: dict[str, dict[str, str]] = {
+        "files": {},
+        "keywords": dict(DEFAULT_TYPE_KEYWORDS),
+    }
     if not mapping_file:
-        return {}
+        return mapping
+
     path = Path(mapping_file)
     if not path.exists():
-        raise FileNotFoundError(f"Scene mapping file not found: {path}")
+        return mapping
+
     payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     if not isinstance(payload, dict):
-        raise ValueError("Scene mapping file must contain a YAML object.")
-    mappings = payload.get("files", payload)
-    if not isinstance(mappings, dict):
-        raise ValueError("Scene mapping 'files' must be a YAML object.")
-    return {str(filename): str(scene) for filename, scene in mappings.items()}
+        raise ValueError("Type mapping file must contain a YAML object.")
+
+    if "files" in payload or "keywords" in payload:
+        file_mapping = payload.get("files", {})
+        keyword_mapping = payload.get("keywords", {})
+    else:
+        file_mapping = {}
+        keyword_mapping = payload
+
+    if not isinstance(file_mapping, dict):
+        raise ValueError("Type mapping 'files' must be a YAML object.")
+    if not isinstance(keyword_mapping, dict):
+        raise ValueError("Type mapping 'keywords' must be a YAML object.")
+
+    mapping["files"].update({str(filename): str(scene) for filename, scene in file_mapping.items()})
+    mapping["keywords"].update({str(keyword): str(scene) for keyword, scene in keyword_mapping.items()})
+    return mapping
 
 
 def scene_for_file(*, file_name: str, file_stem: str, scene_mapping: dict[str, str], default_scene: str) -> str:
     return scene_mapping.get(file_name) or scene_mapping.get(file_stem) or default_scene
+
+
+def type_for_file(
+    *,
+    file_name: str,
+    file_stem: str,
+    type_mapping: dict[str, dict[str, str]],
+    default_type: str,
+) -> str:
+    file_mapping = type_mapping.get("files", {})
+    keyword_mapping = type_mapping.get("keywords", {})
+    if file_name in file_mapping:
+        return file_mapping[file_name]
+    if file_stem in file_mapping:
+        return file_mapping[file_stem]
+    for keyword, mapped_type in keyword_mapping.items():
+        if keyword and (keyword in file_name or keyword in file_stem):
+            return mapped_type
+    return default_type
 
 
 def render_scene_template(
@@ -61,10 +109,8 @@ def render_scene_template(
     base_template = base_template_path.read_text(encoding="utf-8")
     requirement = requirement_path.read_text(encoding="utf-8")
     output_format = format_path.read_text(encoding="utf-8")
-    return [base_template_path, requirement_path, format_path], base_template.replace("{requirement}", requirement).replace(
-        "{format}",
-        output_format,
-    )
+    rendered = base_template.replace("{requirement}", requirement).replace("{format}", output_format)
+    return [base_template_path, requirement_path, format_path], rendered
 
 
 def resolve_initial_template(

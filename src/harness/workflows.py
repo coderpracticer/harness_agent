@@ -12,10 +12,10 @@ from harness.reporting import persist_run_artifacts
 from harness.rules import select_rules_for_type
 from harness.schemas import EvaluationReport, RulesConfig, SummaryDraft, TemplateType
 from harness.templates import (
-    load_scene_mapping,
+    load_type_mapping,
     persist_generated_templates,
     read_template_for_scene,
-    scene_for_file,
+    type_for_file,
 )
 
 
@@ -47,8 +47,7 @@ def run_optimization_batch(
     evaluator_agent: EvaluatorAgent,
     max_iters: int,
     target_score: int,
-    scene_mapping_file: str | Path | None = None,
-    default_scene: str = "",
+    type_mapping_file: str | Path | None = None,
     enable_multimodal_docx: bool = False,
 ) -> OptimizeBatchResult:
     original_dir = Path(file_processing_dir) / "original"
@@ -56,7 +55,7 @@ def run_optimization_batch(
     if not original_files:
         raise FileNotFoundError(f"No .docx files found in {original_dir}")
 
-    scene_mapping = load_scene_mapping(scene_mapping_file)
+    type_mapping = load_type_mapping(type_mapping_file)
     pipeline = SummarizationPipeline(
         template_agent=template_agent,
         summary_agent=summary_agent,
@@ -69,21 +68,21 @@ def run_optimization_batch(
 
     for original_file in original_files:
         document_content = read_document_content(original_file, include_images=enable_multimodal_docx)
-        scene_name = scene_for_file(
+        detected_type = type_for_file(
             file_name=original_file.name,
             file_stem=original_file.stem,
-            scene_mapping=scene_mapping,
-            default_scene=default_scene,
+            type_mapping=type_mapping,
+            default_type=template_type,
         )
         initial_template_paths, initial_template = read_template_for_scene(
             templates_dir=templates_dir,
             template_name=initial_template_name,
-            template_type=template_type,
-            scene_name=scene_name or None,
+            template_type=detected_type,
+            scene_name=detected_type or None,
         )
         result = pipeline.run(
             context=document_content.text,
-            template_type=template_type,
+            template_type=detected_type,
             rules_config=rules_config,
             initial_template=initial_template,
             context_images=document_content.images,
@@ -107,7 +106,7 @@ def run_optimization_batch(
         manifest.append(
             {
                 "document": str(original_file),
-                "scene": scene_name,
+                "template_type": detected_type,
                 "initial_template_components": [str(path) for path in initial_template_paths],
                 "generated_template_dir": str(generated_dir),
                 "best_round": result.best_round,
@@ -135,6 +134,7 @@ def run_evaluation_batch(
     template_type: TemplateType,
     rules_config: RulesConfig,
     evaluator_agent: EvaluatorAgent,
+    type_mapping_file: str | Path | None = None,
     enable_multimodal_docx: bool = False,
 ) -> EvaluationBatchResult:
     base = Path(file_processing_dir)
@@ -147,9 +147,7 @@ def run_evaluation_batch(
     if not summary_dirs:
         raise FileNotFoundError(f"No summary folders found in {base}")
 
-    selected_rules = select_rules_for_type(rules_config, template_type=template_type)
-    if not selected_rules:
-        raise ValueError(f"No rules apply to template_type={template_type}")
+    type_mapping = load_type_mapping(type_mapping_file)
 
     rows: list[dict[str, object]] = []
     missing: list[dict[str, str]] = []
@@ -159,6 +157,17 @@ def run_evaluation_batch(
 
     for original_file in original_files:
         original_content = read_document_content(original_file, include_images=enable_multimodal_docx)
+        detected_type = type_for_file(
+            file_name=original_file.name,
+            file_stem=original_file.stem,
+            type_mapping=type_mapping,
+            default_type=template_type,
+        )
+        selected_rules = select_rules_for_type(rules_config, template_type=detected_type)
+        if not selected_rules:
+            selected_rules = select_rules_for_type(rules_config, template_type=template_type)
+        if not selected_rules:
+            raise ValueError(f"No rules apply to template_type={detected_type}")
         for summary_dir in summary_dirs:
             summary_file = _match_summary_file(summary_dir=summary_dir, original_file=original_file)
             if summary_file is None:
@@ -175,7 +184,7 @@ def run_evaluation_batch(
             )
             detail_path = details_dir / f"{original_file.stem}__{summary_dir.name}.json"
             detail_path.write_text(report.model_dump_json(indent=2), encoding="utf-8")
-            rows.append(_evaluation_row(original_file, summary_dir, summary_file, report, detail_path))
+            rows.append(_evaluation_row(original_file, summary_dir, summary_file, detected_type, report, detail_path))
 
     _write_evaluation_outputs(output_base=output_base, run_id=run_id, rows=rows, missing=missing)
     return EvaluationBatchResult(
@@ -197,6 +206,7 @@ def _evaluation_row(
     original_file: Path,
     summary_dir: Path,
     summary_file: Path,
+    template_type: str,
     report: EvaluationReport,
     detail_path: Path,
 ) -> dict[str, object]:
@@ -204,6 +214,7 @@ def _evaluation_row(
         "original_file": original_file.name,
         "summary_folder": summary_dir.name,
         "summary_file": summary_file.name,
+        "template_type": template_type,
         "score": report.total_score,
         "total_deduction": report.total_deduction,
         "deduction_count": len(report.deductions),
@@ -234,11 +245,11 @@ def _write_evaluation_outputs(
             writer.writerows(rows_sorted)
 
     lines = [f"# Evaluation Comparison ({run_id})", ""]
-    lines.append("| Original | Summary Folder | Score | Total Deduction | Deductions |")
-    lines.append("|---|---|---:|---:|---|")
+    lines.append("| Original | Type | Summary Folder | Score | Total Deduction | Deductions |")
+    lines.append("|---|---|---|---:|---:|---|")
     for row in rows_sorted:
         lines.append(
-            f"| {row['original_file']} | {row['summary_folder']} | {row['score']} | "
+            f"| {row['original_file']} | {row['template_type']} | {row['summary_folder']} | {row['score']} | "
             f"{row['total_deduction']} | {row['deductions'] or '-'} |"
         )
 

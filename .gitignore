@@ -9,6 +9,7 @@ __pycache__/
 .uv_cache/
 .pytest_cache/
 uv.lock
+temp/
 
 # Build metadata
 *.egg-info/

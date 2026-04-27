@@ -17,4 +17,5 @@
 - [x] 支持中文文件名、中文模板名与中文场景名
 - [x] 支持母模板 `{requirement}` / `{format}` 场景化渲染
 - [x] 支持可选多模态 `.docx` 图片输入到 vLLM/OpenAI-compatible 请求
-- [x] 支持 `file_processing/场景映射.yaml` 指定文件对应场景
+- [x] 支持 `file_processing/类型映射.yaml` 通过文件名关键词自动路由模板类型
+- [x] 支持优化/评测阶段对多类型文件全量批处理
