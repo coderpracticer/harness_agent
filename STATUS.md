@@ -50,3 +50,33 @@
 - 测试结果：`26 passed`
 - 配置校验：`environment.yml` YAML 解析通过
 - 未执行项：本机未安装 `conda`，因此未在本机实际创建 conda 环境
+## 2026-04-28 Update
+
+### Done
+
+- 模板优化数据读取已支持 `.xlsx` 与 `.json`。
+- `.xlsx` 数据源现在只读取 A/C/U/V 列，分别作为场景、发言内容、子场景、领域。
+- `.json` 数据源支持 `场景`、`发言内容`、`子场景`、`领域` 以及 `scene`、`content`、`sub_scene`、`domain` 字段。
+- 优化分组已升级为“场景 -> 子场景”；同一场景下不同子场景会分别进入模板优化流程。
+- 子场景产物会写入 `outputs/<scene>/<sub_scene>/` 与 `templates/generated/<run_id>/<scene>/<sub_scene>/`；无子场景时保持旧路径。
+- 模板目录解析兼容 readable 中文目录/文件名：`场景`、`母模板.md`、`要求.md`、`格式.md`，同时保留旧乱码路径兼容。
+
+### In Progress
+
+- 无。
+
+### Next Actions
+
+- 接入真实业务 json/xlsx 样例后，可校验字段别名是否还需要扩展。
+- 后续可在 `templates/场景/<scene>/<sub_scene>/` 层级继续细化子场景专属模板组件。
+
+### Blockers
+
+- 当前环境没有可用 `pytest`：`.venv` 中缺少 pytest，`uv run --offline --with pytest` 因离线缓存缺少 pytest 无法解析。
+
+### Validation Results
+
+- `.\.venv\Scripts\python.exe -m compileall -q src tests` 通过。
+- 手写端到端验证通过：覆盖 xlsx A/C/U/V 读取、json 读取、场景/子场景分组、`optimize` 子场景输出路径。
+- `uv run --offline --with pytest --with python-docx pytest -q --basetemp temp/pytest_run` 未通过，原因是离线缓存缺少 pytest。
+- `.\.venv\Scripts\python.exe -m pytest -q --basetemp temp/pytest_run` 未通过，原因是 `.venv` 未安装 pytest。

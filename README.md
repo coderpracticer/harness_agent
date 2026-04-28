@@ -1,5 +1,25 @@
 # Harness Summary Iteration
 
+## Optimization Data Format
+
+Template optimization accepts `.xlsx` and `.json` inputs.
+
+For `.xlsx`, only these columns are read:
+
+- A: scene
+- C: utterance/content
+- U: sub-scene
+- V: domain
+
+For `.json`, each record may use either Chinese or English field names:
+
+- `场景` / `scene`
+- `发言内容` / `content`
+- `子场景` / `sub_scene`
+- `领域` / `domain`
+
+Sub-scenes belong to scenes. When `子场景` / `sub_scene` is present, optimization runs separately for each `(scene, sub_scene)` group and writes artifacts under `outputs/<scene>/<sub_scene>/` and `templates/generated/<run_id>/<scene>/<sub_scene>/`.
+
 This project runs an iterative summary harness for `.docx` documents:
 
 1. Optimize scene-level templates from `file_processing/150data.xlsx`

@@ -11,6 +11,10 @@ DEFAULT_TYPE_KEYWORDS: dict[str, str] = {
     "工作": "meeting",
     "知识": "knowledge",
     "新闻": "news",
+    "鍙戝竷浼?": "press_conference",
+    "宸ヤ綔": "meeting",
+    "鐭ヨ瘑": "knowledge",
+    "鏂伴椈": "news",
 }
 
 
@@ -87,13 +91,15 @@ def render_scene_template(
             base_dir / base_template_name,
             base_dir / f"{base_template_name}.md",
             base_dir / "母模板.md",
+            base_dir / "姣嶆ā鏉?md",
         ],
     )
-    scene_dir = base_dir / "场景" / scene_name
+    scene_dir = _resolve_scene_dir(base_dir=base_dir, scene_name=scene_name)
     requirement_path = _resolve_template_path(
         base_dir=base_dir,
         candidates=[
             scene_dir / "要求.md",
+            scene_dir / "瑕佹眰.md",
             scene_dir / "requirement.md",
             scene_dir / f"{scene_name}_requirement.md",
         ],
@@ -102,6 +108,7 @@ def render_scene_template(
         base_dir=base_dir,
         candidates=[
             scene_dir / "格式.md",
+            scene_dir / "鏍煎紡.md",
             scene_dir / "format.md",
             scene_dir / f"{scene_name}_format.md",
         ],
@@ -171,21 +178,22 @@ def read_template_for_scene(
 
 
 def ensure_scene_template_components(*, templates_dir: str | Path, scene_name: str) -> list[Path]:
-    scene_dir = Path(templates_dir) / "场景" / scene_name
-    scene_dir.mkdir(parents=True, exist_ok=True)
+    scene_dir = _resolve_scene_dir(base_dir=Path(templates_dir), scene_name=scene_name, create=True)
     requirement_path = scene_dir / "要求.md"
     format_path = scene_dir / "格式.md"
 
-    if not requirement_path.exists():
+    if not requirement_path.exists() and not (scene_dir / "瑕佹眰.md").exists():
         requirement_path.write_text(_default_requirement(scene_name), encoding="utf-8")
-    if not format_path.exists():
+    if not format_path.exists() and not (scene_dir / "鏍煎紡.md").exists():
         format_path.write_text(_default_format(scene_name), encoding="utf-8")
     return [requirement_path, format_path]
 
 
 def scene_template_exists(*, templates_dir: str | Path, scene_name: str) -> bool:
-    scene_dir = Path(templates_dir) / "场景" / scene_name
-    return (scene_dir / "要求.md").exists() and (scene_dir / "格式.md").exists()
+    scene_dir = _resolve_scene_dir(base_dir=Path(templates_dir), scene_name=scene_name)
+    requirement_exists = any((scene_dir / name).exists() for name in ("要求.md", "瑕佹眰.md", "requirement.md"))
+    format_exists = any((scene_dir / name).exists() for name in ("格式.md", "鏍煎紡.md", "format.md"))
+    return requirement_exists and format_exists
 
 
 def persist_generated_templates(
@@ -239,3 +247,16 @@ def _resolve_template_path(*, base_dir: Path, candidates: list[Path]) -> Path:
             return candidate
     names = ", ".join(str(path.relative_to(base_dir)) if path.is_relative_to(base_dir) else str(path) for path in candidates)
     raise FileNotFoundError(f"Template component not found. Tried: {names}")
+
+
+def _resolve_scene_dir(*, base_dir: Path, scene_name: str, create: bool = False) -> Path:
+    readable_dir = base_dir / "场景" / scene_name
+    legacy_dir = base_dir / "鍦烘櫙" / scene_name
+    if readable_dir.exists():
+        return readable_dir
+    if legacy_dir.exists():
+        return legacy_dir
+    scene_dir = readable_dir if create and (base_dir / "场景").exists() else legacy_dir
+    if create:
+        scene_dir.mkdir(parents=True, exist_ok=True)
+    return scene_dir

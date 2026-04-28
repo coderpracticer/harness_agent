@@ -22,3 +22,13 @@
 - [x] 支持 `file_processing/150data.xlsx` 作为模板优化专用数据源
 - [x] 支持按 Excel 场景列聚合多条数据，每个场景只产出一个最终模板
 - [x] 支持优化时自动为未知场景创建初始模板组件
+## 2026-04-28 数据格式与子场景支持
+
+- [x] 支持模板优化数据读取 `.xlsx` 与 `.json`
+- [x] `.xlsx` 仅读取 A/C/U/V 列：场景、发言内容、子场景、领域
+- [x] `.json` 支持中英文字段名与常见 records/items/data 包装结构
+- [x] 优化分组从单层场景扩展为“场景 -> 子场景”
+- [x] 子场景存在时，优化报告输出到 `outputs/<scene>/<sub_scene>/`
+- [x] 子场景存在时，生成模板输出到 `templates/generated/<run_id>/<scene>/<sub_scene>/final.md`
+- [x] 保持无子场景数据的旧路径兼容：`outputs/<scene>/` 与 `templates/generated/<run_id>/<scene>/`
+- [x] 补充针对 xlsx A/C/U/V、json、子场景产物路径的测试用例

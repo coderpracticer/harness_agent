@@ -7,7 +7,7 @@ from pathlib import Path
 
 from harness.agents import EvaluatorAgent, SummaryGeneratorAgent, TemplateGeneratorAgent
 from harness.document_reader import list_docx_files, read_document_content
-from harness.excel_reader import build_scene_context, group_records_by_scene, read_optimization_records
+from harness.excel_reader import build_scene_context, group_records_by_scene_and_sub_scene, read_optimization_records
 from harness.pipeline import SummarizationPipeline
 from harness.reporting import persist_run_artifacts
 from harness.rules import select_rules_for_type
@@ -60,7 +60,7 @@ def run_optimization_batch(
         raise FileNotFoundError(f"No optimization records found in {optimization_data_file}")
 
     type_mapping = load_type_mapping(type_mapping_file)
-    grouped_records = group_records_by_scene(records)
+    grouped_records = group_records_by_scene_and_sub_scene(records)
     pipeline = SummarizationPipeline(
         template_agent=template_agent,
         summary_agent=summary_agent,
@@ -71,7 +71,10 @@ def run_optimization_batch(
     generated_base = Path(templates_dir) / "generated" / run_id
     manifest: list[dict[str, object]] = []
 
-    for scene_key, scene_records in sorted(grouped_records.items()):
+    for group_key, scene_records in sorted(grouped_records.items(), key=lambda item: (item[0].scene_key, item[0].sub_scene_key)):
+        scene_key = group_key.scene_key
+        sub_scene_key = group_key.sub_scene_key
+        document_stem = _optimization_document_stem(scene_key=scene_key, sub_scene_key=sub_scene_key)
         detected_type = type_for_file(
             file_name=scene_key,
             file_stem=scene_key,
@@ -86,7 +89,7 @@ def run_optimization_batch(
             template_type=detected_type,
             scene_name=scene_template_name,
         )
-        scene_context = build_scene_context(scene_key=scene_key, records=scene_records)
+        scene_context = build_scene_context(scene_key=scene_key, sub_scene_key=sub_scene_key, records=scene_records)
         result = pipeline.run(
             context=scene_context,
             template_type=detected_type,
@@ -95,7 +98,7 @@ def run_optimization_batch(
             max_iters=max_iters,
             target_score=target_score,
         )
-        scene_output = base_output / scene_key
+        scene_output = base_output / scene_key / sub_scene_key if sub_scene_key else base_output / scene_key
         persist_run_artifacts(
             output_dir=scene_output,
             result=result,
@@ -105,13 +108,14 @@ def run_optimization_batch(
         generated_dir = persist_generated_templates(
             templates_dir=templates_dir,
             run_id=run_id,
-            document_stem=scene_key,
+            document_stem=document_stem,
             round_templates=[(log.round_index, log.template_draft.content) for log in result.round_logs],
             final_template=result.final_template,
         )
         manifest.append(
             {
                 "scene": scene_key,
+                "sub_scene": sub_scene_key,
                 "template_type": detected_type,
                 "scene_template": scene_template_name,
                 "sample_count": len(scene_records),
@@ -133,6 +137,12 @@ def run_optimization_batch(
         generated_template_dir=generated_base,
         processed_documents=len(records),
     )
+
+
+def _optimization_document_stem(*, scene_key: str, sub_scene_key: str) -> str:
+    if not sub_scene_key:
+        return scene_key
+    return f"{scene_key}/{sub_scene_key}"
 
 
 def run_evaluation_batch(
