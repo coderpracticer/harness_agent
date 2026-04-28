@@ -34,6 +34,8 @@ def test_parser_accepts_optimize_command_with_type_mapping():
             "optimize",
             "--file-processing-dir",
             "file_processing",
+            "--optimization-data-file",
+            "file_processing/150data.xlsx",
             "--initial-template",
             "母模板.md",
             "--type-mapping-file",
@@ -43,6 +45,7 @@ def test_parser_accepts_optimize_command_with_type_mapping():
     )
 
     assert args.command == "optimize"
+    assert args.optimization_data_file == "file_processing/150data.xlsx"
     assert args.initial_template == "母模板.md"
     assert args.templates_dir == "templates"
     assert args.type_mapping_file == "file_processing/类型映射.yaml"

@@ -7,14 +7,17 @@ from pathlib import Path
 
 from harness.agents import EvaluatorAgent, SummaryGeneratorAgent, TemplateGeneratorAgent
 from harness.document_reader import list_docx_files, read_document_content
+from harness.excel_reader import build_scene_context, group_records_by_scene, read_optimization_records
 from harness.pipeline import SummarizationPipeline
 from harness.reporting import persist_run_artifacts
 from harness.rules import select_rules_for_type
 from harness.schemas import EvaluationReport, RulesConfig, SummaryDraft, TemplateType
 from harness.templates import (
+    ensure_scene_template_components,
     load_type_mapping,
     persist_generated_templates,
     read_template_for_scene,
+    scene_template_exists,
     type_for_file,
 )
 
@@ -36,6 +39,7 @@ class EvaluationBatchResult:
 def run_optimization_batch(
     *,
     file_processing_dir: str | Path,
+    optimization_data_file: str | Path,
     templates_dir: str | Path,
     initial_template_name: str,
     run_id: str,
@@ -50,12 +54,13 @@ def run_optimization_batch(
     type_mapping_file: str | Path | None = None,
     enable_multimodal_docx: bool = False,
 ) -> OptimizeBatchResult:
-    original_dir = Path(file_processing_dir) / "original"
-    original_files = list_docx_files(original_dir)
-    if not original_files:
-        raise FileNotFoundError(f"No .docx files found in {original_dir}")
+    del file_processing_dir, enable_multimodal_docx
+    records = read_optimization_records(optimization_data_file)
+    if not records:
+        raise FileNotFoundError(f"No optimization records found in {optimization_data_file}")
 
     type_mapping = load_type_mapping(type_mapping_file)
+    grouped_records = group_records_by_scene(records)
     pipeline = SummarizationPipeline(
         template_agent=template_agent,
         summary_agent=summary_agent,
@@ -66,47 +71,51 @@ def run_optimization_batch(
     generated_base = Path(templates_dir) / "generated" / run_id
     manifest: list[dict[str, object]] = []
 
-    for original_file in original_files:
-        document_content = read_document_content(original_file, include_images=enable_multimodal_docx)
+    for scene_key, scene_records in sorted(grouped_records.items()):
         detected_type = type_for_file(
-            file_name=original_file.name,
-            file_stem=original_file.stem,
+            file_name=scene_key,
+            file_stem=scene_key,
             type_mapping=type_mapping,
-            default_type=template_type,
+            default_type=scene_key or template_type,
         )
+        scene_template_name = detected_type if scene_template_exists(templates_dir=templates_dir, scene_name=detected_type) else scene_key
+        ensure_scene_template_components(templates_dir=templates_dir, scene_name=scene_template_name)
         initial_template_paths, initial_template = read_template_for_scene(
             templates_dir=templates_dir,
             template_name=initial_template_name,
             template_type=detected_type,
-            scene_name=detected_type or None,
+            scene_name=scene_template_name,
         )
+        scene_context = build_scene_context(scene_key=scene_key, records=scene_records)
         result = pipeline.run(
-            context=document_content.text,
+            context=scene_context,
             template_type=detected_type,
             rules_config=rules_config,
             initial_template=initial_template,
-            context_images=document_content.images,
             max_iters=max_iters,
             target_score=target_score,
         )
-        doc_output = base_output / original_file.stem
+        scene_output = base_output / scene_key
         persist_run_artifacts(
-            output_dir=doc_output,
+            output_dir=scene_output,
             result=result,
             rules_config=rules_config,
-            prompt_file=original_file,
+            prompt_file=optimization_data_file,
         )
         generated_dir = persist_generated_templates(
             templates_dir=templates_dir,
             run_id=run_id,
-            document_stem=original_file.stem,
+            document_stem=scene_key,
             round_templates=[(log.round_index, log.template_draft.content) for log in result.round_logs],
             final_template=result.final_template,
         )
         manifest.append(
             {
-                "document": str(original_file),
+                "scene": scene_key,
                 "template_type": detected_type,
+                "scene_template": scene_template_name,
+                "sample_count": len(scene_records),
+                "source_rows": [record.row_index for record in scene_records],
                 "initial_template_components": [str(path) for path in initial_template_paths],
                 "generated_template_dir": str(generated_dir),
                 "best_round": result.best_round,
@@ -122,7 +131,7 @@ def run_optimization_batch(
     return OptimizeBatchResult(
         output_dir=base_output,
         generated_template_dir=generated_base,
-        processed_documents=len(original_files),
+        processed_documents=len(records),
     )
 
 

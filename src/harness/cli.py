@@ -28,6 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     optimize_parser = subparsers.add_parser("optimize", help="Optimize templates for all original docx files.")
     _add_batch_common_args(optimize_parser)
+    optimize_parser.add_argument("--optimization-data-file", default="file_processing/150data.xlsx")
     optimize_parser.add_argument("--initial-template", required=True, help="Parent template file, for example 母模板.md.")
     optimize_parser.add_argument("--templates-dir", default="templates")
     optimize_parser.add_argument("--max-iters", type=int, default=3)
@@ -103,6 +104,7 @@ def _optimize_command(args: argparse.Namespace) -> int:
 
     result = run_optimization_batch(
         file_processing_dir=args.file_processing_dir,
+        optimization_data_file=args.optimization_data_file,
         templates_dir=args.templates_dir,
         initial_template_name=args.initial_template,
         run_id=run_id,

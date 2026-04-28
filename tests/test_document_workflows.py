@@ -1,9 +1,11 @@
 from pathlib import Path
 
 from docx import Document
+from openpyxl import Workbook
 
 from harness.cli import main
 from harness.document_reader import read_document_content, read_document_text
+from harness.excel_reader import normalize_scene_key, read_optimization_records
 from harness.templates import load_type_mapping, render_scene_template, type_for_file
 
 
@@ -20,6 +22,23 @@ def test_read_document_text_extracts_paragraphs_and_tables(tmp_path: Path):
 
     assert "Meeting source paragraph." in text
     assert "Owner | Deadline" in text
+
+
+def test_excel_reader_groups_numbered_scene_labels(tmp_path: Path):
+    xlsx_path = tmp_path / "150data.xlsx"
+    _write_xlsx(
+        xlsx_path,
+        [
+            ("发布会议1", "标题1", "内容1"),
+            ("发布会议2", "标题2", "内容2"),
+            ("知识3", "标题3", "内容3"),
+        ],
+    )
+
+    records = read_optimization_records(xlsx_path)
+
+    assert [record.scene_key for record in records] == ["发布会议", "发布会议", "知识"]
+    assert normalize_scene_key("发布会议12") == "发布会议"
 
 
 def test_type_mapping_uses_keywords_and_file_overrides(tmp_path: Path):
@@ -62,12 +81,18 @@ def test_scene_template_replaces_requirement_and_format(tmp_path: Path):
     assert "发布会格式" in content
 
 
-def test_optimize_command_processes_all_original_docx_with_type_mapping(tmp_path: Path):
+def test_optimize_command_outputs_one_template_per_scene_from_xlsx(tmp_path: Path):
     file_processing = tmp_path / "file_processing"
-    original_dir = file_processing / "original"
-    original_dir.mkdir(parents=True)
-    _write_docx(original_dir / "新品发布会.docx", "The press conference announced a new product.")
-    _write_docx(original_dir / "工作纪要.docx", "The meeting decided to ship. Alice owns validation by 2026-05-10.")
+    file_processing.mkdir()
+    xlsx_path = file_processing / "150data.xlsx"
+    _write_xlsx(
+        xlsx_path,
+        [
+            ("发布会议1", "发布标题1", "The press conference announced a new product."),
+            ("发布会议2", "发布标题2", "The press conference answered media questions."),
+            ("工作1", "工作标题", "The meeting decided to ship. Alice owns validation by 2026-05-10."),
+        ],
+    )
     mapping_file = file_processing / "类型映射.yaml"
     mapping_file.write_text("keywords:\n  发布会: press_conference\n  工作: meeting\n", encoding="utf-8")
 
@@ -86,6 +111,8 @@ def test_optimize_command_processes_all_original_docx_with_type_mapping(tmp_path
             "optimize",
             "--file-processing-dir",
             str(file_processing),
+            "--optimization-data-file",
+            str(xlsx_path),
             "--templates-dir",
             str(templates_dir),
             "--initial-template",
@@ -100,13 +127,48 @@ def test_optimize_command_processes_all_original_docx_with_type_mapping(tmp_path
     )
 
     assert code == 0
-    assert (output_dir / "新品发布会" / "final" / "report.md").exists()
-    assert (output_dir / "工作纪要" / "final" / "report.md").exists()
+    assert (output_dir / "发布会议" / "final" / "report.md").exists()
+    assert (output_dir / "工作" / "final" / "report.md").exists()
     generated = sorted((templates_dir / "generated").glob("*/*/final.md"))
     assert len(generated) == 2
     rendered = "\n".join(path.read_text(encoding="utf-8") for path in generated)
     assert "发布会要求" in rendered
     assert "工作要求" in rendered
+
+
+def test_optimize_command_auto_creates_initial_template_for_unknown_scene(tmp_path: Path):
+    file_processing = tmp_path / "file_processing"
+    file_processing.mkdir()
+    xlsx_path = file_processing / "150data.xlsx"
+    _write_xlsx(xlsx_path, [("新场景1", "标题", "内容")])
+
+    templates_dir = tmp_path / "templates"
+    templates_dir.mkdir()
+    (templates_dir / "母模板.md").write_text("# 母模板\n\n{requirement}\n\n{format}", encoding="utf-8")
+    output_dir = tmp_path / "outputs" / "opt"
+
+    code = main(
+        [
+            "optimize",
+            "--file-processing-dir",
+            str(file_processing),
+            "--optimization-data-file",
+            str(xlsx_path),
+            "--templates-dir",
+            str(templates_dir),
+            "--initial-template",
+            "母模板.md",
+            "--rules-file",
+            "rules/scoring_rules.yaml",
+            "--output-dir",
+            str(output_dir),
+        ]
+    )
+
+    assert code == 0
+    assert (templates_dir / "场景" / "新场景" / "要求.md").exists()
+    assert (templates_dir / "场景" / "新场景" / "格式.md").exists()
+    assert list((templates_dir / "generated").glob("*/*/final.md"))
 
 
 def test_evaluate_command_processes_all_original_docx_with_type_mapping(tmp_path: Path):
@@ -174,3 +236,11 @@ def _write_docx(path: Path, text: str) -> None:
     for line in text.splitlines():
         document.add_paragraph(line)
     document.save(path)
+
+
+def _write_xlsx(path: Path, rows: list[tuple[str, str, str]]) -> None:
+    workbook = Workbook()
+    sheet = workbook.active
+    for row in rows:
+        sheet.append(row)
+    workbook.save(path)

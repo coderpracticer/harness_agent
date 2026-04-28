@@ -2,9 +2,9 @@
 
 This project runs an iterative summary harness for `.docx` documents:
 
-1. Read source documents from `file_processing/original`
-2. Route each file to a template type by filename keyword
-3. Optimize templates or evaluate existing summaries in batch
+1. Optimize scene-level templates from `file_processing/150data.xlsx`
+2. Evaluate `.docx` summaries from `file_processing`
+3. Route each file or scene to a template type by keyword
 4. Write full reports under `outputs`
 
 ## Conda Setup
@@ -32,6 +32,7 @@ pytest -q
 
 ```text
 file_processing/
+  150data.xlsx
   original/
     新品发布会.docx
     工作纪要.docx
@@ -70,6 +71,8 @@ files:
 
 Exact `files` mappings take priority. If no exact match exists, the harness checks whether the filename contains a configured keyword.
 
+For optimization, the mapping is applied to normalized scene names from column A in `150data.xlsx`.
+
 ## Template Layout
 
 ```text
@@ -105,11 +108,20 @@ For each file, the detected type chooses `templates/场景/<type>/要求.md` and
 
 ## Optimize
 
-Optimization reads only `file_processing/original`, routes every file by mapping, generates summaries, evaluates them, and writes optimized templates:
+Optimization reads `file_processing/150data.xlsx` only. The Excel columns are:
+
+- Column A: scene type, usually with a numeric suffix such as `发布会议1`, `发布会议2`
+- Column B: title
+- Column C: content
+
+Rows with the same normalized scene are grouped together. For example, `发布会议1` and `发布会议2` are grouped as `发布会议`, and one final template is generated for that scene.
+
+If a scene is not covered by `templates/场景/<type>` or the mapping file, the harness automatically creates an initial scene template folder before optimization.
 
 ```bash
 python -m harness.cli optimize \
   --file-processing-dir file_processing \
+  --optimization-data-file file_processing/150data.xlsx \
   --initial-template 母模板.md \
   --type-mapping-file file_processing/类型映射.yaml
 ```
@@ -165,9 +177,9 @@ The harness attaches extracted `.docx` images to summary generation and evaluati
 
 Optimization outputs:
 
-- `outputs/optimize_<run_id>/<document_stem>/round_N/...`
-- `outputs/optimize_<run_id>/<document_stem>/final/report.md`
-- `templates/generated/<run_id>/<document_stem>/final.md`
+- `outputs/optimize_<run_id>/<scene>/round_N/...`
+- `outputs/optimize_<run_id>/<scene>/final/report.md`
+- `templates/generated/<run_id>/<scene>/final.md`
 
 Evaluation outputs:
 

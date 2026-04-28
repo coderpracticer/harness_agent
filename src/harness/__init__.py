@@ -4,6 +4,7 @@ __all__ = [
     "agents",
     "cli",
     "document_reader",
+    "excel_reader",
     "pipeline",
     "reporting",
     "rules",

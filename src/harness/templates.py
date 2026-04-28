@@ -170,6 +170,24 @@ def read_template_for_scene(
     return [path], content
 
 
+def ensure_scene_template_components(*, templates_dir: str | Path, scene_name: str) -> list[Path]:
+    scene_dir = Path(templates_dir) / "场景" / scene_name
+    scene_dir.mkdir(parents=True, exist_ok=True)
+    requirement_path = scene_dir / "要求.md"
+    format_path = scene_dir / "格式.md"
+
+    if not requirement_path.exists():
+        requirement_path.write_text(_default_requirement(scene_name), encoding="utf-8")
+    if not format_path.exists():
+        format_path.write_text(_default_format(scene_name), encoding="utf-8")
+    return [requirement_path, format_path]
+
+
+def scene_template_exists(*, templates_dir: str | Path, scene_name: str) -> bool:
+    scene_dir = Path(templates_dir) / "场景" / scene_name
+    return (scene_dir / "要求.md").exists() and (scene_dir / "格式.md").exists()
+
+
 def persist_generated_templates(
     *,
     templates_dir: str | Path,
@@ -184,6 +202,35 @@ def persist_generated_templates(
         (base / f"round_{round_index}.md").write_text(content, encoding="utf-8")
     (base / "final.md").write_text(final_template, encoding="utf-8")
     return base
+
+
+def _default_requirement(scene_name: str) -> str:
+    return "\n".join(
+        [
+            f"- 面向“{scene_name}”场景生成摘要模板。",
+            "- 覆盖原文中的核心事实、关键结论、重要依据和后续事项。",
+            "- 保持信息可核验，不添加原文无法支持的内容。",
+            "- 如果多条样本中存在共同结构，应优先抽取为稳定模板字段。",
+        ]
+    )
+
+
+def _default_format(scene_name: str) -> str:
+    return "\n".join(
+        [
+            f"# {scene_name}摘要",
+            "",
+            "## 背景与主题",
+            "",
+            "## 核心信息",
+            "",
+            "## 关键依据",
+            "",
+            "## 结论与影响",
+            "",
+            "## 后续事项",
+        ]
+    )
 
 
 def _resolve_template_path(*, base_dir: Path, candidates: list[Path]) -> Path:

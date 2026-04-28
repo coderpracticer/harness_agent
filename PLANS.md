@@ -19,3 +19,6 @@
 - [x] 支持可选多模态 `.docx` 图片输入到 vLLM/OpenAI-compatible 请求
 - [x] 支持 `file_processing/类型映射.yaml` 通过文件名关键词自动路由模板类型
 - [x] 支持优化/评测阶段对多类型文件全量批处理
+- [x] 支持 `file_processing/150data.xlsx` 作为模板优化专用数据源
+- [x] 支持按 Excel 场景列聚合多条数据，每个场景只产出一个最终模板
+- [x] 支持优化时自动为未知场景创建初始模板组件
