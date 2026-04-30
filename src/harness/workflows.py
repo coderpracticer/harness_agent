@@ -7,7 +7,7 @@ from pathlib import Path
 
 from harness.agents import EvaluatorAgent, SummaryGeneratorAgent, TemplateGeneratorAgent
 from harness.document_reader import list_docx_files, read_document_content
-from harness.excel_reader import build_scene_context, group_records_by_scene_and_sub_scene, read_optimization_records
+from harness.excel_reader import build_scene_context, group_records_by_optimization_scope, read_optimization_records
 from harness.pipeline import SummarizationPipeline
 from harness.reporting import persist_run_artifacts
 from harness.rules import select_rules_for_type
@@ -51,6 +51,8 @@ def run_optimization_batch(
     evaluator_agent: EvaluatorAgent,
     max_iters: int,
     target_score: int,
+    optimization_scope: str = "scene_and_sub_scene",
+    max_context_chars: int = 0,
     type_mapping_file: str | Path | None = None,
     enable_multimodal_docx: bool = False,
 ) -> OptimizeBatchResult:
@@ -60,7 +62,7 @@ def run_optimization_batch(
         raise FileNotFoundError(f"No optimization records found in {optimization_data_file}")
 
     type_mapping = load_type_mapping(type_mapping_file)
-    grouped_records = group_records_by_scene_and_sub_scene(records)
+    grouped_records = group_records_by_optimization_scope(records=records, scope=optimization_scope)
     pipeline = SummarizationPipeline(
         template_agent=template_agent,
         summary_agent=summary_agent,
@@ -74,14 +76,18 @@ def run_optimization_batch(
     for group_key, scene_records in sorted(grouped_records.items(), key=lambda item: (item[0].scene_key, item[0].sub_scene_key)):
         scene_key = group_key.scene_key
         sub_scene_key = group_key.sub_scene_key
+        group_name = _optimization_group_name(scene_key=scene_key, sub_scene_key=sub_scene_key)
         document_stem = _optimization_document_stem(scene_key=scene_key, sub_scene_key=sub_scene_key)
+        routing_key = scene_key or sub_scene_key
         detected_type = type_for_file(
-            file_name=scene_key,
-            file_stem=scene_key,
+            file_name=routing_key,
+            file_stem=routing_key,
             type_mapping=type_mapping,
-            default_type=scene_key or template_type,
+            default_type=routing_key or template_type,
         )
         scene_template_name = detected_type if scene_template_exists(templates_dir=templates_dir, scene_name=detected_type) else scene_key
+        if not scene_template_name:
+            scene_template_name = sub_scene_key or detected_type
         ensure_scene_template_components(templates_dir=templates_dir, scene_name=scene_template_name)
         initial_template_paths, initial_template = read_template_for_scene(
             templates_dir=templates_dir,
@@ -97,8 +103,9 @@ def run_optimization_batch(
             initial_template=initial_template,
             max_iters=max_iters,
             target_score=target_score,
+            max_context_chars=max_context_chars,
         )
-        scene_output = base_output / scene_key / sub_scene_key if sub_scene_key else base_output / scene_key
+        scene_output = base_output / document_stem
         persist_run_artifacts(
             output_dir=scene_output,
             result=result,
@@ -116,6 +123,8 @@ def run_optimization_batch(
             {
                 "scene": scene_key,
                 "sub_scene": sub_scene_key,
+                "group": group_name,
+                "optimization_scope": optimization_scope,
                 "template_type": detected_type,
                 "scene_template": scene_template_name,
                 "sample_count": len(scene_records),
@@ -139,10 +148,14 @@ def run_optimization_batch(
     )
 
 
+def _optimization_group_name(*, scene_key: str, sub_scene_key: str) -> str:
+    if scene_key and sub_scene_key:
+        return f"{scene_key}/{sub_scene_key}"
+    return scene_key or sub_scene_key or "unknown"
+
+
 def _optimization_document_stem(*, scene_key: str, sub_scene_key: str) -> str:
-    if not sub_scene_key:
-        return scene_key
-    return f"{scene_key}/{sub_scene_key}"
+    return _optimization_group_name(scene_key=scene_key, sub_scene_key=sub_scene_key)
 
 
 def run_evaluation_batch(

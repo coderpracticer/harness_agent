@@ -27,9 +27,13 @@ class SummarizationPipeline:
         context_images: list[ImageInput] | None = None,
         max_iters: int = 3,
         target_score: int = 85,
+        max_context_chars: int = 0,
     ) -> PipelineResult:
         if max_iters <= 0:
             raise ValueError("max_iters must be > 0")
+        if max_context_chars < 0:
+            raise ValueError("max_context_chars must be >= 0")
+        context = truncate_context(context=context, max_chars=max_context_chars)
 
         selected_rules = select_rules_for_type(rules_config, template_type=template_type)
         if not selected_rules:
@@ -100,6 +104,17 @@ class SummarizationPipeline:
             final_summary=best_round_log.summary_draft.content,
             round_logs=round_logs,
         )
+
+
+def truncate_context(*, context: str, max_chars: int) -> str:
+    if max_chars <= 0 or len(context) <= max_chars:
+        return context
+    marker = "\n\n[... input truncated before template iteration ...]\n\n"
+    if max_chars <= len(marker) + 2:
+        return context[:max_chars]
+    head_chars = max(1, int((max_chars - len(marker)) * 0.7))
+    tail_chars = max_chars - len(marker) - head_chars
+    return context[:head_chars].rstrip() + marker + context[-tail_chars:].lstrip()
 
 
 def _build_eval_feedback(round_log: RoundLog) -> str:

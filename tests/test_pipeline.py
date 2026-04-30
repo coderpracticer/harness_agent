@@ -1,6 +1,7 @@
 from harness.agents import EvaluatorAgent, SummaryGeneratorAgent, TemplateGeneratorAgent
 from harness.llm_client import HeuristicLLMClient
 from harness.pipeline import SummarizationPipeline
+from harness.pipeline import truncate_context
 from harness.schemas import (
     DeductionItem,
     EvaluationReport,
@@ -168,3 +169,14 @@ def test_pipeline_passes_feedback_and_selects_best_round():
     assert result.best_score == 90
     assert template_agent.feedback_history[0] in ("", None)
     assert template_agent.feedback_history[1]
+
+
+def test_truncate_context_keeps_head_and_tail():
+    context = "A" * 100 + "B" * 100
+
+    truncated = truncate_context(context=context, max_chars=80)
+
+    assert len(truncated) <= 80
+    assert truncated.startswith("A")
+    assert truncated.endswith("B")
+    assert "input truncated" in truncated

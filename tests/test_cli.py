@@ -18,6 +18,8 @@ def test_run_parser_accepts_local_llm_options():
             "/models/qwen",
             "--timeout-seconds",
             "120",
+            "--max-tokens",
+            "1024",
         ]
     )
 
@@ -25,6 +27,7 @@ def test_run_parser_accepts_local_llm_options():
     assert args.base_url == "http://127.0.0.1:8000/v1"
     assert args.model == "/models/qwen"
     assert args.timeout_seconds == 120
+    assert args.max_tokens == 1024
 
 
 def test_parser_accepts_optimize_command_with_type_mapping():
@@ -51,6 +54,41 @@ def test_parser_accepts_optimize_command_with_type_mapping():
     assert args.type_mapping_file == "file_processing/类型映射.yaml"
     assert args.template_type == "meeting"
     assert args.enable_multimodal_docx is True
+
+
+def test_parser_accepts_optimize_scope_and_context_truncation():
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "optimize",
+            "--file-processing-dir",
+            "file_processing",
+            "--initial-template",
+            "母模板.md",
+            "--optimization-scope",
+            "scene",
+            "--max-context-chars",
+            "12000",
+        ]
+    )
+
+    assert args.optimization_scope == "scene"
+    assert args.max_context_chars == 12000
+
+
+def test_parser_defaults_to_scene_and_sub_scene_optimization_scope():
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "optimize",
+            "--file-processing-dir",
+            "file_processing",
+            "--initial-template",
+            "母模板.md",
+        ]
+    )
+
+    assert args.optimization_scope == "scene_and_sub_scene"
 
 
 def test_parser_accepts_evaluate_command_with_type_mapping():

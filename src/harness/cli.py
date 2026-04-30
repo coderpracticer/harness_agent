@@ -23,6 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--rules-file", default="rules/scoring_rules.yaml")
     run_parser.add_argument("--max-iters", type=int, default=3)
     run_parser.add_argument("--target-score", type=int, default=85)
+    run_parser.add_argument("--max-context-chars", type=int, default=0, help="Truncate input context before iteration; 0 disables truncation.")
     run_parser.add_argument("--output-dir", default="")
     _add_llm_args(run_parser)
 
@@ -33,6 +34,13 @@ def build_parser() -> argparse.ArgumentParser:
     optimize_parser.add_argument("--templates-dir", default="templates")
     optimize_parser.add_argument("--max-iters", type=int, default=3)
     optimize_parser.add_argument("--target-score", type=int, default=85)
+    optimize_parser.add_argument(
+        "--optimization-scope",
+        choices=["scene", "sub_scene", "scene_sub_scene", "scene_and_sub_scene"],
+        default="scene_and_sub_scene",
+        help="Group optimization data by scene, sub-scene, scene/sub-scene pairs, or scene plus scene/sub-scene pairs.",
+    )
+    optimize_parser.add_argument("--max-context-chars", type=int, default=0, help="Truncate optimization context before iteration; 0 disables truncation.")
 
     evaluate_parser = subparsers.add_parser("evaluate", help="Evaluate every summary folder against all originals.")
     _add_batch_common_args(evaluate_parser)
@@ -83,6 +91,7 @@ def _run_command(args: argparse.Namespace) -> int:
         initial_template=initial_template,
         max_iters=args.max_iters,
         target_score=args.target_score,
+        max_context_chars=args.max_context_chars,
     )
     persist_run_artifacts(
         output_dir=output_dir,
@@ -116,6 +125,8 @@ def _optimize_command(args: argparse.Namespace) -> int:
         evaluator_agent=EvaluatorAgent(llm_client=llm_client),
         max_iters=args.max_iters,
         target_score=args.target_score,
+        optimization_scope=args.optimization_scope,
+        max_context_chars=args.max_context_chars,
         type_mapping_file=args.type_mapping_file,
         enable_multimodal_docx=args.enable_multimodal_docx,
     )
@@ -166,6 +177,7 @@ def _add_llm_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--base-url", default="", help="OpenAI-compatible base URL, for example vLLM /v1.")
     parser.add_argument("--api-key", default="", help="API key. Optional for local/private base URLs.")
     parser.add_argument("--timeout-seconds", type=int, default=0, help="LLM request timeout in seconds.")
+    parser.add_argument("--max-tokens", type=int, default=0, help="Maximum output tokens for each LLM request.")
 
 
 def _create_client_from_args(args: argparse.Namespace):
@@ -180,6 +192,8 @@ def _create_client_from_args(args: argparse.Namespace):
         settings.api_key = args.api_key
     if args.timeout_seconds:
         settings.timeout_seconds = args.timeout_seconds
+    if args.max_tokens:
+        settings.max_tokens = args.max_tokens
     return create_llm_client(settings=settings)
 
 

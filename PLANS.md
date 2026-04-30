@@ -32,3 +32,6 @@
 - [x] 子场景存在时，生成模板输出到 `templates/generated/<run_id>/<scene>/<sub_scene>/final.md`
 - [x] 保持无子场景数据的旧路径兼容：`outputs/<scene>/` 与 `templates/generated/<run_id>/<scene>/`
 - [x] 补充针对 xlsx A/C/U/V、json、子场景产物路径的测试用例
+- [x] 增加 `--optimization-scope`，支持按 `scene`、`sub_scene`、`scene_sub_scene`、`scene_and_sub_scene` 控制模板迭代分组
+- [x] 将默认分组改为 `scene_and_sub_scene`：一定生成场景级模板，有子场景时同时生成子场景级模板
+- [x] 增加 `--max-context-chars`，支持在模板迭代前截断过长输入

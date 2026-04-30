@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from harness.schemas import PipelineResult, RulesConfig
+
+_THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
 
 
 def persist_run_artifacts(
@@ -19,8 +22,14 @@ def persist_run_artifacts(
     for round_log in result.round_logs:
         round_dir = base / f"round_{round_log.round_index}"
         round_dir.mkdir(parents=True, exist_ok=True)
-        (round_dir / "template.md").write_text(round_log.template_draft.content, encoding="utf-8")
-        (round_dir / "summary.md").write_text(round_log.summary_draft.content, encoding="utf-8")
+        (round_dir / "template.md").write_text(
+            _strip_think_blocks(round_log.template_draft.content),
+            encoding="utf-8",
+        )
+        (round_dir / "summary.md").write_text(
+            _strip_think_blocks(round_log.summary_draft.content),
+            encoding="utf-8",
+        )
         (round_dir / "evaluation.json").write_text(
             round_log.evaluation.model_dump_json(indent=2),
             encoding="utf-8",
@@ -28,8 +37,14 @@ def persist_run_artifacts(
 
     final_dir = base / "final"
     final_dir.mkdir(parents=True, exist_ok=True)
-    (final_dir / "template.md").write_text(result.final_template, encoding="utf-8")
-    (final_dir / "summary.md").write_text(result.final_summary, encoding="utf-8")
+    (final_dir / "template.md").write_text(
+        _strip_think_blocks(result.final_template),
+        encoding="utf-8",
+    )
+    (final_dir / "summary.md").write_text(
+        _strip_think_blocks(result.final_summary),
+        encoding="utf-8",
+    )
 
     best_log = result.round_logs[result.best_round - 1]
     report_payload = {
@@ -50,6 +65,10 @@ def persist_run_artifacts(
         encoding="utf-8",
     )
     return base
+
+
+def _strip_think_blocks(text: str) -> str:
+    return _THINK_BLOCK_RE.sub("", text).lstrip("\r\n")
 
 
 def _build_markdown_report(*, result: PipelineResult, rules_config: RulesConfig) -> str:

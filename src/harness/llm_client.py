@@ -39,6 +39,7 @@ class LLMSettings:
     api_key: str | None = None
     base_url: str = "https://api.openai.com/v1"
     timeout_seconds: int = 60
+    max_tokens: int = 2048
 
     @classmethod
     def from_env(cls) -> "LLMSettings":
@@ -48,6 +49,7 @@ class LLMSettings:
             api_key=os.getenv("OPENAI_API_KEY"),
             base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
             timeout_seconds=int(os.getenv("HARNESS_LLM_TIMEOUT_SECONDS", "60")),
+            max_tokens=int(os.getenv("HARNESS_LLM_MAX_TOKENS", "2048")),
         )
 
 
@@ -115,6 +117,8 @@ class OpenAICompatibleLLMClient:
             "messages": messages,
             "temperature": temperature,
         }
+        if self._settings.max_tokens > 0:
+            payload["max_tokens"] = self._settings.max_tokens
         url = self._settings.base_url.rstrip("/") + "/chat/completions"
         headers = {"Content-Type": "application/json"}
         if self._settings.api_key:

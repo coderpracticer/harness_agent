@@ -18,7 +18,16 @@ For `.json`, each record may use either Chinese or English field names:
 - `子场景` / `sub_scene`
 - `领域` / `domain`
 
-Sub-scenes belong to scenes. When `子场景` / `sub_scene` is present, optimization runs separately for each `(scene, sub_scene)` group and writes artifacts under `outputs/<scene>/<sub_scene>/` and `templates/generated/<run_id>/<scene>/<sub_scene>/`.
+Sub-scenes belong to scenes. By default, optimization generates a scene-level template for every scene. When `子场景` / `sub_scene` is present, it also generates sub-scene-level templates under that scene.
+
+Use `--optimization-scope` to control grouping:
+
+- `scene`: one template per scene
+- `sub_scene`: one template per sub-scene
+- `scene_sub_scene`: one template per scene/sub-scene pair
+- `scene_and_sub_scene`: one scene-level template plus scene/sub-scene templates when sub-scenes exist; this is the default
+
+Use `--max-context-chars` to truncate long optimization contexts before template iteration. `0` disables truncation.
 
 This project runs an iterative summary harness for `.docx` documents:
 
@@ -182,8 +191,11 @@ python -m harness.cli optimize \
   --llm-backend openai \
   --base-url http://127.0.0.1:8000/v1 \
   --model /path/to/model \
-  --timeout-seconds 120
+  --timeout-seconds 120 \
+  --max-tokens 2048
 ```
+
+`max_tokens` defaults to `2048`. Override it with `--max-tokens` or `HARNESS_LLM_MAX_TOKENS`.
 
 For multimodal vLLM models, add:
 

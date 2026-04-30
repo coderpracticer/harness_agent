@@ -116,9 +116,30 @@ def group_records_by_scene(records: list[OptimizationRecord]) -> dict[str, list[
 def group_records_by_scene_and_sub_scene(
     records: list[OptimizationRecord],
 ) -> dict[OptimizationGroupKey, list[OptimizationRecord]]:
+    return group_records_by_optimization_scope(records=records, scope="scene_sub_scene")
+
+
+def group_records_by_optimization_scope(
+    records: list[OptimizationRecord],
+    scope: str,
+) -> dict[OptimizationGroupKey, list[OptimizationRecord]]:
+    valid_scopes = {"scene", "sub_scene", "scene_sub_scene", "scene_and_sub_scene"}
+    if scope not in valid_scopes:
+        raise ValueError("Optimization scope must be one of: scene, sub_scene, scene_sub_scene, scene_and_sub_scene.")
     grouped: dict[OptimizationGroupKey, list[OptimizationRecord]] = {}
     for record in records:
-        key = OptimizationGroupKey(scene_key=record.scene_key, sub_scene_key=record.sub_scene_key)
+        if scope == "scene":
+            key = OptimizationGroupKey(scene_key=record.scene_key)
+        elif scope == "sub_scene":
+            key = OptimizationGroupKey(scene_key="", sub_scene_key=record.sub_scene_key or "unknown")
+        elif scope == "scene_and_sub_scene":
+            grouped.setdefault(OptimizationGroupKey(scene_key=record.scene_key), []).append(record)
+            if record.sub_scene_key:
+                key = OptimizationGroupKey(scene_key=record.scene_key, sub_scene_key=record.sub_scene_key)
+            else:
+                continue
+        else:
+            key = OptimizationGroupKey(scene_key=record.scene_key, sub_scene_key=record.sub_scene_key)
         grouped.setdefault(key, []).append(record)
     return grouped
 

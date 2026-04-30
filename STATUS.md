@@ -60,6 +60,9 @@
 - 优化分组已升级为“场景 -> 子场景”；同一场景下不同子场景会分别进入模板优化流程。
 - 子场景产物会写入 `outputs/<scene>/<sub_scene>/` 与 `templates/generated/<run_id>/<scene>/<sub_scene>/`；无子场景时保持旧路径。
 - 模板目录解析兼容 readable 中文目录/文件名：`场景`、`母模板.md`、`要求.md`、`格式.md`，同时保留旧乱码路径兼容。
+- 新增 `--optimization-scope` 参数，可选择按 `scene`、`sub_scene`、`scene_sub_scene` 或 `scene_and_sub_scene` 分组进行模板迭代。
+- `optimize` 默认分组已改为 `scene_and_sub_scene`：一定生成场景级模板；有子场景时，同时生成 `场景/子场景` 级模板。
+- 新增 `--max-context-chars` 参数，模板迭代开始前会对过长输入做头尾保留式截断；`0` 表示不截断。
 
 ### In Progress
 
@@ -78,5 +81,6 @@
 
 - `.\.venv\Scripts\python.exe -m compileall -q src tests` 通过。
 - 手写端到端验证通过：覆盖 xlsx A/C/U/V 读取、json 读取、场景/子场景分组、`optimize` 子场景输出路径。
+- 手写轻量验证通过：覆盖 `--optimization-scope`、`--max-context-chars` 参数解析，scope 分组，以及截断函数。
 - `uv run --offline --with pytest --with python-docx pytest -q --basetemp temp/pytest_run` 未通过，原因是离线缓存缺少 pytest。
 - `.\.venv\Scripts\python.exe -m pytest -q --basetemp temp/pytest_run` 未通过，原因是 `.venv` 未安装 pytest。
